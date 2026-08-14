@@ -5,7 +5,7 @@ function App() {
 
 return (
     <div>
-      <h1>Chatter</h1>
+      <h1><img src="/logo.svg" alt="Chatter logo" className="app-logo" />Chatter</h1>
 
        <header>
         <Show when="signed-out">
