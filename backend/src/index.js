@@ -28,10 +28,6 @@ app.get("/health", (req, res) => {
     res.status(200).json({ ok: "Server is healthy" });
 });
 
-app.use("/api/auth",authRoutes )
-
-// if the public directory exists, serve the static files
-//this is for the production field
 if(fs.existsSync(publicDir)){
 
     app.use(express.static(publicDir));
