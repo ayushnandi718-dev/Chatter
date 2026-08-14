@@ -25,6 +25,83 @@
   margin-right: 8px;
 }
 
+.user-menu {
+  position: relative;
+}
+
+.user-menu-trigger {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.user-menu-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: linear-gradient(135deg, #7c3aed, #ec4899);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 200px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+  z-index: 50;
+}
+
+.user-menu-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 12px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  margin-bottom: 6px;
+}
+
+.user-menu-header strong {
+  font-size: 14px;
+}
+
+.user-menu-header span {
+  font-size: 12px;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.user-menu-item:hover {
+  background: var(--accent-bg, #f5f3ff);
+}
+
 .hero {
   position: relative;
 

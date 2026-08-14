@@ -1,4 +1,5 @@
-import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/react';
+import { Show, SignInButton, SignUpButton } from '@clerk/react';
+import UserMenu from './components/UserMenu.jsx';
 import './App.css'
 
 function App() {
@@ -13,7 +14,7 @@ return (
           <SignUpButton mode="modal" />
         </Show>
         <Show when="signed-in">
-          <UserButton />
+          <UserMenu />
         </Show>
       </header>
     </div>
