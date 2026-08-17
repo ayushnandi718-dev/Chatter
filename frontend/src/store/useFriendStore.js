@@ -7,6 +7,7 @@ export const useFriendStore = create((set, get) => ({
     friends: [],
     incomingRequests: [],
     outgoingRequests: [],
+    incomingReconnectRequests: [],
     searchResults: [],
     isFriendsLoading: false,
     isRequestsLoading: false,
@@ -27,10 +28,14 @@ export const useFriendStore = create((set, get) => ({
     getRequests: async () => {
         set({ isRequestsLoading: true });
         try {
-            const res = await axiosInstance.get("/friends/requests");
+            const [requestsRes, reconnectRes] = await Promise.all([
+                axiosInstance.get("/friends/requests"),
+                axiosInstance.get("/blocks/reconnect/incoming"),
+            ]);
             set({
-                incomingRequests: res.data.incoming,
-                outgoingRequests: res.data.outgoing,
+                incomingRequests: requestsRes.data.incoming,
+                outgoingRequests: requestsRes.data.outgoing,
+                incomingReconnectRequests: reconnectRes.data,
             });
         } catch (error) {
             console.error("Error fetching requests:", error);
@@ -126,6 +131,33 @@ export const useFriendStore = create((set, get) => ({
         }
     },
 
+    acceptReconnectRequest: async (requestId) => {
+        try {
+            await axiosInstance.post(`/blocks/reconnect/accept/${requestId}`);
+            set((state) => ({
+                incomingReconnectRequests: state.incomingReconnectRequests.filter((r) => r._id !== requestId),
+            }));
+            get().getFriends();
+            get().getRequests();
+            toast.success("Reconnect accepted");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to accept reconnect");
+        }
+    },
+
+    declineReconnectRequest: async (requestId) => {
+        try {
+            await axiosInstance.post(`/blocks/reconnect/decline/${requestId}`);
+            set((state) => ({
+                incomingReconnectRequests: state.incomingReconnectRequests.filter((r) => r._id !== requestId),
+            }));
+            get().getRequests();
+            toast.success("Reconnect declined");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to decline reconnect");
+        }
+    },
+
     handleFriendRequestEvent: (data) => {
         set((state) => ({
             incomingRequests: [
@@ -134,6 +166,13 @@ export const useFriendStore = create((set, get) => ({
             ],
         }));
         toast(`${data.from.displayName || data.from.username} sent you a friend request`, {
+            duration: 5000,
+        });
+    },
+
+    handleReconnectRequestEvent: (data) => {
+        get().getRequests();
+        toast("Someone wants to reconnect with you", {
             duration: 5000,
         });
     },
@@ -158,6 +197,7 @@ export const useFriendStore = create((set, get) => ({
         socket.off("friendRequest");
         socket.off("friendAccepted");
         socket.off("friendRemoved");
+        socket.off("reconnectRequest");
 
         socket.on("friendRequest", (data) => {
             get().handleFriendRequestEvent(data);
@@ -170,6 +210,10 @@ export const useFriendStore = create((set, get) => ({
         socket.on("friendRemoved", () => {
             get().handleFriendRemovedEvent();
         });
+
+        socket.on("reconnectRequest", (data) => {
+            get().handleReconnectRequestEvent(data);
+        });
     },
 
     unsubscribeFromFriendEvents: () => {
@@ -178,5 +222,6 @@ export const useFriendStore = create((set, get) => ({
         socket.off("friendRequest");
         socket.off("friendAccepted");
         socket.off("friendRemoved");
+        socket.off("reconnectRequest");
     },
 }));

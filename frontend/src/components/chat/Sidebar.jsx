@@ -18,6 +18,7 @@ export function Sidebar({ onOpenSearch, onOpenRequests, onOpenSettings }) {
 
     const friends = useFriendStore((state) => state.friends);
     const incomingRequests = useFriendStore((state) => state.incomingRequests);
+    const incomingReconnectRequests = useFriendStore((state) => state.incomingReconnectRequests);
     const isFriendsLoading = useFriendStore((state) => state.isFriendsLoading);
 
     const authUser = useAuthStore((state) => state.authUser);
@@ -188,10 +189,10 @@ export function Sidebar({ onOpenSearch, onOpenRequests, onOpenSettings }) {
                             title="Friend Requests"
                         >
                             <Bell className="h-3.5 w-3.5" />
-                            {incomingRequests.length > 0 && (
+                            {(incomingRequests.length + incomingReconnectRequests.length) > 0 && (
                                 <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[8px] font-bold text-white"
                                       style={{ background: 'var(--danger)' }}>
-                                    {incomingRequests.length}
+                                    {incomingRequests.length + incomingReconnectRequests.length}
                                 </span>
                             )}
                         </button>

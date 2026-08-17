@@ -4,6 +4,7 @@ import {
     blockUser,
     unblockUser,
     getBlockedUsers,
+    getIncomingReconnectRequests,
     sendReconnectRequest,
     acceptReconnectRequest,
     declineReconnectRequest,
@@ -13,6 +14,7 @@ import {
 const router = express.Router();
 
 router.get("/", protectRoute, getBlockedUsers);
+router.get("/reconnect/incoming", protectRoute, getIncomingReconnectRequests);
 router.post("/:userId", protectRoute, blockUser);
 router.delete("/:userId", protectRoute, unblockUser);
 router.post("/reconnect/:userId", protectRoute, sendReconnectRequest);

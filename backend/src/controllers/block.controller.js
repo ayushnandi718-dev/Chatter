@@ -107,6 +107,34 @@ export async function getBlockedUsers(req, res) {
     }
 }
 
+export async function getIncomingReconnectRequests(req, res) {
+    try {
+        const currentUserId = req.user._id;
+
+        const requests = await ReconnectRequest.find({
+            recipient: currentUserId,
+            status: "pending",
+        }).populate("requester", "username displayName profilePic");
+
+        const formatted = requests.map((r) => ({
+            _id: r._id,
+            user: {
+                _id: r.requester._id,
+                username: r.requester.username,
+                displayName: r.requester.displayName || r.requester.username,
+                profilePic: r.requester.profilePic,
+            },
+            createdAt: r.createdAt,
+            type: "reconnect",
+        }));
+
+        res.status(200).json(formatted);
+    } catch (error) {
+        console.error("Error in getIncomingReconnectRequests:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
+
 export async function sendReconnectRequest(req, res) {
     try {
         const { userId } = req.params;
