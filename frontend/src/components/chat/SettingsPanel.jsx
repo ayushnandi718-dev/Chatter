@@ -8,6 +8,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { axiosInstance } from "../../lib/axios";
 import { X, User, Shield, Palette, Volume2, Lock, Info, ChevronRight, ChevronLeft, UserX, RefreshCw, MessageSquare, Globe } from "lucide-react";
 import toast from "react-hot-toast";
+import { ConfirmModal } from "./ConfirmModal";
 
 const THEMES = [
     { id: "dark", label: "Dark", icon: "\u{1F319}" },
@@ -137,6 +138,7 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
     const [about, setAbout] = useState(authUser?.about || "");
     const [isSaving, setIsSaving] = useState(false);
     const [showBlockedUsers, setShowBlockedUsers] = useState(false);
+    const [unblockConfirm, setUnblockConfirm] = useState(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -194,9 +196,7 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
     };
 
     const handleUnblock = (userId, name) => {
-        if (window.confirm(`Remove block on ${name}? This will also remove any pending reconnect requests.`)) {
-            unblockUser(userId);
-        }
+        setUnblockConfirm({ userId, name });
     };
 
     const formatFingerprint = (fp) => {
@@ -546,6 +546,21 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                     to { transform: translateX(0); }
                 }
             `}</style>
+
+            <ConfirmModal
+                isOpen={!!unblockConfirm}
+                onClose={() => setUnblockConfirm(null)}
+                onConfirm={() => {
+                    unblockUser(unblockConfirm.userId);
+                    setUnblockConfirm(null);
+                }}
+                title="Unblock User"
+                message={`Remove block on ${unblockConfirm?.name || ""}? They'll be able to message you again and see your profile.`}
+                confirmText="Unblock"
+                cancelText="Keep Blocked"
+                variant="info"
+                icon={<RefreshCw className="h-5 w-5" style={{ color: "var(--accent)" }} />}
+            />
         </div>
     );
 }

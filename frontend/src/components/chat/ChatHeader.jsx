@@ -3,8 +3,9 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useTheme } from "../../context/ThemeContext";
 import { useFriendStore } from "../../store/useFriendStore";
 import { useSoundStore } from "../../store/useSoundStore";
-import { X, Volume2, VolumeX, Palette, Image as ImageIcon, ArrowLeft, UserMinus, Search, Shield, MoreVertical, Ban, Flag, Unlock } from "lucide-react";
+import { X, Volume2, VolumeX, Palette, Image as ImageIcon, ArrowLeft, UserMinus, Search, Shield, MoreVertical, Ban, Flag, Unlock, UserX, Trash2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { ConfirmModal } from "./ConfirmModal";
 
 export function ChatHeader({ onOpenWallpapers, onOpenSearch, onOpenProfile }) {
     const selectedUser = useChatStore((state) => state.selectedUser);
@@ -22,6 +23,7 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch, onOpenProfile }) {
     const [showReportModal, setShowReportModal] = useState(false);
     const [reportReason, setReportReason] = useState("");
     const [reportDesc, setReportDesc] = useState("");
+    const [confirmAction, setConfirmAction] = useState(null);
     const menuRef = useRef(null);
 
     useEffect(() => {
@@ -41,18 +43,13 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch, onOpenProfile }) {
     const isBlocked = blockedUserIds.includes(selectedUser._id);
 
     const handleRemoveFriend = async () => {
-        if (window.confirm(`Remove ${selectedUser.displayName || selectedUser.username} as a friend?`)) {
-            await removeFriend(selectedUser._id);
-            setSelectedUser(null);
-            setShowMenu(false);
-        }
+        setShowMenu(false);
+        setConfirmAction("removeFriend");
     };
 
     const handleBlock = async () => {
-        if (window.confirm(`Block ${selectedUser.displayName || selectedUser.username}? You won't see their messages and they can't message you.`)) {
-            await blockUser(selectedUser._id);
-            setShowMenu(false);
-        }
+        setShowMenu(false);
+        setConfirmAction("block");
     };
 
     const handleUnblock = async () => {
@@ -254,6 +251,35 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch, onOpenProfile }) {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={confirmAction === "removeFriend"}
+                onClose={() => setConfirmAction(null)}
+                onConfirm={async () => {
+                    await removeFriend(selectedUser._id);
+                    setSelectedUser(null);
+                }}
+                title="Remove Friend"
+                message={`Remove ${selectedUser.displayName || selectedUser.username} as a friend? You'll need to send a new friend request to chat again.`}
+                confirmText="Remove"
+                cancelText="Keep"
+                variant="danger"
+                icon={<Trash2 className="h-5 w-5" style={{ color: "var(--danger)" }} />}
+            />
+
+            <ConfirmModal
+                isOpen={confirmAction === "block"}
+                onClose={() => setConfirmAction(null)}
+                onConfirm={async () => {
+                    await blockUser(selectedUser._id);
+                }}
+                title="Block User"
+                message={`Block ${selectedUser.displayName || selectedUser.username}? They won't be able to message you, and you won't see their messages. You can send a friend request later to reconnect.`}
+                confirmText="Block"
+                cancelText="Cancel"
+                variant="danger"
+                icon={<UserX className="h-5 w-5" style={{ color: "var(--danger)" }} />}
+            />
         </div>
     );
 }

@@ -7,6 +7,7 @@ import { ImageViewer } from "./ImageViewer";
 import { Loader2, Download, Check, CheckCheck, AlertCircle, Reply, Copy, Trash2, RotateCcw, Pencil, Pin } from "lucide-react";
 import toast from "react-hot-toast";
 import { axiosInstance } from "../../lib/axios";
+import { PromptModal } from "./PromptModal";
 
 function formatTime(timestamp) {
     if (!timestamp) return "";
@@ -361,6 +362,7 @@ export function MessageList({ onReply }) {
     const [reactionPickerMsgId, setReactionPickerMsgId] = useState(null);
     const [viewerOpen, setViewerOpen] = useState(false);
     const [viewerIndex, setViewerIndex] = useState(0);
+    const [editMessage, setEditMessage] = useState(null);
     const messagesEndRef = useRef(null);
 
     const allImageUrls = messages
@@ -410,17 +412,20 @@ export function MessageList({ onReply }) {
     }, [messages, authUser, deleteMessage]);
 
     const handleEdit = useCallback(async (message) => {
-        const newText = prompt("Edit message:", message.text);
-        if (newText === null || newText.trim() === message.text.trim()) return;
-        try {
-            const payload = { text: newText.trim() };
+        setEditMessage(message);
+    }, []);
 
-            if (message.encryptedText && message.iv && message.receiverId) {
+    const handleEditConfirm = useCallback(async (newText) => {
+        if (!editMessage) return;
+        try {
+            const payload = { text: newText };
+
+            if (editMessage.encryptedText && editMessage.iv && editMessage.receiverId) {
                 const crypto = useCryptoStore.getState();
                 const encrypted = await crypto.encryptOutgoing(
-                    newText.trim(),
-                    message.receiverId,
-                    message.senderId
+                    newText,
+                    editMessage.receiverId,
+                    editMessage.senderId
                 );
                 if (encrypted) {
                     payload.text = "";
@@ -430,12 +435,13 @@ export function MessageList({ onReply }) {
                 }
             }
 
-            await axiosInstance.patch(`/messages/${message._id}`, payload);
+            await axiosInstance.patch(`/messages/${editMessage._id}`, payload);
             toast.success("Message edited");
+            setEditMessage(null);
         } catch {
             toast.error("Failed to edit message");
         }
-    }, []);
+    }, [editMessage]);
 
     const handlePin = useCallback(async (messageId) => {
         try {
@@ -726,6 +732,18 @@ export function MessageList({ onReply }) {
                     />
                 </div>
             )}
+
+            <PromptModal
+                isOpen={!!editMessage}
+                onClose={() => setEditMessage(null)}
+                onConfirm={handleEditConfirm}
+                title="Edit Message"
+                defaultValue={editMessage?.text || ""}
+                placeholder="Type your message..."
+                confirmText="Save"
+                maxLength={500}
+                icon={<Pencil className="h-5 w-5" style={{ color: "var(--accent)" }} />}
+            />
         </div>
     );
 }
