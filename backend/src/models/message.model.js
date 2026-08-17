@@ -44,6 +44,26 @@ const messageSchema = new mongoose.Schema(
             type: String,
             default: null,
         },
+        file: {
+            type: String,
+            default: null,
+        },
+        fileName: {
+            type: String,
+            default: "",
+        },
+        fileType: {
+            type: String,
+            default: "",
+        },
+        fileSize: {
+            type: Number,
+            default: 0,
+        },
+        audio: {
+            type: String,
+            default: null,
+        },
         readAt: {
             type: Date,
             default: null,

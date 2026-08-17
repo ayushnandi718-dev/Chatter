@@ -1,20 +1,40 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useChatStore } from "../../store/useChatStore";
 import { useSoundStore } from "../../store/useSoundStore";
-import { Send, Image, X, Loader2, Video, Plus } from "lucide-react";
+import { Send, Image, X, Loader2, Video, Plus, Mic, FileText, StopCircle } from "lucide-react";
 import toast from "react-hot-toast";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function formatDuration(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 export function ChatComposer() {
     const [text, setText] = useState("");
     const [selectedFile, setSelectedFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
-    const [isVideo, setIsVideo] = useState(false);
+    const [fileInfo, setFileInfo] = useState({ name: "", type: "", size: 0 });
+    const [showAttachMenu, setShowAttachMenu] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordDuration, setRecordDuration] = useState(0);
+    const [recordedBlob, setRecordedBlob] = useState(null);
 
     const fileInputRef = useRef(null);
+    const audioInputRef = useRef(null);
     const textareaRef = useRef(null);
     const typingTimeoutRef = useRef(null);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+    const recordTimerRef = useRef(null);
 
     const sendMessage = useChatStore((state) => state.sendMessage);
     const isSendingMedia = useChatStore((state) => state.isSendingMedia);
@@ -23,53 +43,121 @@ export function ChatComposer() {
     const sendTyping = useChatStore((state) => state.sendTyping);
     const sendStopTyping = useChatStore((state) => state.sendStopTyping);
 
+    useEffect(() => {
+        return () => {
+            if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+            if (mediaRecorderRef.current?.state === "recording") {
+                mediaRecorderRef.current.stop();
+            }
+        };
+    }, []);
+
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
         if (file.size > MAX_FILE_SIZE) {
             toast.error("File size must be under 25MB");
             return;
         }
-
-        const isImg = file.type.startsWith("image/");
-        const isVid = file.type.startsWith("video/");
-
-        if (!isImg && !isVid) {
-            toast.error("Only images and videos are supported");
-            return;
-        }
-
         setSelectedFile(file);
-        setIsVideo(isVid);
-        setFilePreview(URL.createObjectURL(file));
+        setFileInfo({ name: file.name, type: file.type, size: file.size });
+        if (file.type.startsWith("image/")) {
+            setFilePreview(URL.createObjectURL(file));
+        } else {
+            setFilePreview(null);
+        }
+        setShowAttachMenu(false);
     };
 
     const handleRemoveFile = () => {
         if (filePreview) URL.revokeObjectURL(filePreview);
         setSelectedFile(null);
         setFilePreview(null);
+        setFileInfo({ name: "", type: "", size: 0 });
         if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    const handleRemoveAudio = () => {
+        if (recordedBlob) URL.revokeObjectURL(URL.createObjectURL(recordedBlob));
+        setRecordedBlob(null);
+        setRecordDuration(0);
+    };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+            audioChunksRef.current = [];
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
+            };
+
+            recorder.onstop = () => {
+                const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+                setRecordedBlob(blob);
+                stream.getTracks().forEach((t) => t.stop());
+            };
+
+            mediaRecorderRef.current = recorder;
+            recorder.start();
+            setIsRecording(true);
+            setRecordDuration(0);
+            setShowAttachMenu(false);
+
+            recordTimerRef.current = setInterval(() => {
+                setRecordDuration((d) => d + 1);
+            }, 1000);
+        } catch {
+            toast.error("Microphone access denied");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current?.state === "recording") {
+            mediaRecorderRef.current.stop();
+        }
+        if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+        setIsRecording(false);
+    };
+
+    const cancelRecording = () => {
+        if (mediaRecorderRef.current?.state === "recording") {
+            mediaRecorderRef.current.stop();
+        }
+        if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+        setIsRecording(false);
+        setRecordedBlob(null);
+        setRecordDuration(0);
     };
 
     const handleSend = async (e) => {
         e?.preventDefault();
-        if ((!text.trim() && !selectedFile) || isSendingMedia) return;
+        if (isSendingMedia) return;
 
         try {
-            if (selectedFile) {
+            if (recordedBlob) {
+                const audioFile = new File([recordedBlob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
+                const formData = new FormData();
+                formData.append("file", audioFile);
+                await sendMessage(formData);
+                handleRemoveAudio();
+            } else if (selectedFile) {
                 const formData = new FormData();
                 if (text.trim()) formData.append("text", text.trim());
                 formData.append("file", selectedFile);
                 await sendMessage(formData);
-            } else {
+                handleRemoveFile();
+                setText("");
+            } else if (text.trim()) {
                 await sendMessage({ text: text.trim() });
+                setText("");
+            } else {
+                return;
             }
 
-            setText("");
-            handleRemoveFile();
             if (selectedUser?._id) sendStopTyping(selectedUser._id);
-        } catch (error) {
+        } catch {
             // error handled by store
         }
     };
@@ -91,30 +179,77 @@ export function ChatComposer() {
         }
     };
 
+    const hasContent = text.trim() || selectedFile || recordedBlob;
+
+    const getFileIcon = (type) => {
+        if (type?.startsWith("image/")) return <Image className="h-4 w-4" />;
+        if (type?.startsWith("video/")) return <Video className="h-4 w-4" />;
+        return <FileText className="h-4 w-4" />;
+    };
+
     return (
-        <div className="px-3 pb-3 pt-1 safe-area-bottom" style={{ background: 'var(--bg-chat)' }}>
-            {filePreview && (
+        <div className="px-3 pb-3 pt-1 safe-area-bottom relative" style={{ background: 'var(--bg-chat)' }}>
+            {/* Recording indicator */}
+            {isRecording && (
+                <div className="mb-2 flex items-center gap-2.5 rounded-lg px-3 py-2.5"
+                     style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                    <div className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-xs font-medium" style={{ color: 'var(--danger)' }}>
+                        Recording {formatDuration(recordDuration)}
+                    </span>
+                    <div className="flex-1" />
+                    <button onClick={cancelRecording}
+                            className="h-7 w-7 flex items-center justify-center rounded-lg transition-colors"
+                            style={{ color: 'var(--danger)' }}>
+                        <X className="h-4 w-4" />
+                    </button>
+                    <button onClick={stopRecording}
+                            className="h-7 w-7 flex items-center justify-center rounded-lg transition-colors"
+                            style={{ background: 'var(--danger)', color: 'white' }}>
+                        <StopCircle className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
+
+            {/* Recorded audio preview */}
+            {recordedBlob && !isRecording && (
+                <div className="mb-2 flex items-center gap-2.5 rounded-lg px-3 py-2"
+                     style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                    <div className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0"
+                         style={{ background: 'var(--accent-muted)' }}>
+                        <Mic className="h-4 w-4" style={{ color: 'var(--accent)' }} />
+                    </div>
+                    <audio src={URL.createObjectURL(recordedBlob)} controls className="h-8 flex-1" style={{ maxHeight: '32px' }} />
+                    <button onClick={handleRemoveAudio}
+                            className="h-6 w-6 flex items-center justify-center rounded-full"
+                            style={{ color: 'var(--text-muted)' }}>
+                        <X className="h-3.5 w-3.5" />
+                    </button>
+                </div>
+            )}
+
+            {/* File preview */}
+            {selectedFile && (
                 <div className="mb-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2"
                      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md flex items-center justify-center"
                          style={{ background: 'var(--bg-elevated)' }}>
-                        {isVideo ? (
-                            <Video className="h-4 w-4" style={{ color: 'var(--text-muted)' }} />
-                        ) : (
+                        {filePreview ? (
                             <img src={filePreview} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                            <span style={{ color: 'var(--accent)' }}>{getFileIcon(fileInfo.type)}</span>
                         )}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-medium truncate"
-                           style={{ color: 'var(--text-primary)' }}>
-                            {selectedFile?.name}
+                        <p className="text-[11px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                            {fileInfo.name}
                         </p>
                         <p className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                            {(selectedFile?.size / (1024 * 1024)).toFixed(1)} MB
+                            {formatFileSize(fileInfo.size)}
                         </p>
                     </div>
                     <button onClick={handleRemoveFile}
-                            className="h-5 w-5 flex items-center justify-center rounded-full transition-colors"
+                            className="h-5 w-5 flex items-center justify-center rounded-full"
                             style={{ color: 'var(--text-muted)' }}>
                         <X className="h-3 w-3" />
                     </button>
@@ -122,30 +257,61 @@ export function ChatComposer() {
             )}
 
             <form onSubmit={handleSend} className="flex items-end gap-1.5">
-                <input type="file"
-                       ref={fileInputRef}
-                       onChange={handleFileChange}
-                       accept="image/*,video/*"
-                       className="hidden" />
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden"
+                       accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip,.rar,.csv,.xlsx,.pptx" />
+                <input type="file" ref={audioInputRef} onChange={handleFileChange} className="hidden"
+                       accept="audio/*" />
 
-                <button type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        title="Attach">
-                    <Plus className="h-4 w-4" />
-                </button>
+                {/* Attach button */}
+                <div className="relative">
+                    <button type="button"
+                            onClick={() => setShowAttachMenu(!showAttachMenu)}
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+                            style={{ color: showAttachMenu ? 'var(--accent)' : 'var(--text-muted)', background: showAttachMenu ? 'var(--accent-muted)' : 'transparent' }}
+                            title="Attach">
+                        <Plus className="h-4 w-4" />
+                    </button>
+
+                    {showAttachMenu && (
+                        <div className="absolute bottom-full mb-2 left-0 w-44 rounded-lg py-1 z-50"
+                             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                            <button onClick={() => { fileInputRef.current.accept = "image/*,video/*"; fileInputRef.current.click(); }}
+                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-[11px] font-medium transition-colors"
+                                    style={{ color: 'var(--text-primary)' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <Image className="h-3.5 w-3.5" style={{ color: 'var(--accent)' }} />
+                                Photo / Video
+                            </button>
+                            <button onClick={() => { fileInputRef.current.accept = ".pdf,.doc,.docx,.txt,.zip,.rar,.csv,.xlsx,.pptx,.pdf"; fileInputRef.current.click(); }}
+                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-[11px] font-medium transition-colors"
+                                    style={{ color: 'var(--text-primary)' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <FileText className="h-3.5 w-3.5" style={{ color: '#f59e0b' }} />
+                                Document
+                            </button>
+                            <button onClick={() => { startRecording(); }}
+                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-[11px] font-medium transition-colors"
+                                    style={{ color: 'var(--text-primary)' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <Mic className="h-3.5 w-3.5" style={{ color: 'var(--danger)' }} />
+                                Voice Message
+                            </button>
+                        </div>
+                    )}
+                </div>
 
                 <div className="relative flex-1">
                     <textarea ref={textareaRef}
                               value={text}
                               onChange={handleTextChange}
                               onKeyDown={handleKeyDown}
-                              placeholder="Type a message..."
+                              placeholder={isRecording ? "Recording..." : "Type a message..."}
                               rows={1}
-                              className="w-full resize-none rounded-lg px-3 py-2 text-xs outline-none transition-colors"
+                              disabled={isRecording}
+                              className="w-full resize-none rounded-lg px-3 py-2 text-xs outline-none transition-colors disabled:opacity-50"
                               style={{
                                   background: 'var(--bg-surface)',
                                   color: 'var(--text-primary)',
@@ -157,7 +323,7 @@ export function ChatComposer() {
                 </div>
 
                 <button type="submit"
-                        disabled={(!text.trim() && !selectedFile) || isSendingMedia}
+                        disabled={!hasContent || isSendingMedia}
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white transition-colors disabled:opacity-30"
                         style={{ background: 'var(--accent)' }}>
                     {isSendingMedia ? (

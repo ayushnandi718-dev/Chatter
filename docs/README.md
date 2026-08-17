@@ -1,15 +1,15 @@
 # Chatter — Documentation Library
 
-Welcome to the Chatter documentation directory. Below is the directory of all specifications, design documents, API contracts, and engineering guidelines.
+All project specifications, architectural blueprints, and developer guides for the Chatter real-time messaging platform.
 
 ---
 
-## 📑 Documents Index
+## Documents Index
 
 | Document | Description |
 |---|---|
-| 📋 **[PRD.md](./PRD.md)** | **Product Requirements Document:** Vision, target personas, user stories with acceptance criteria, functional requirements matrix, non-functional requirements (NFRs), and success KPIs. |
-| 🏗️ **[ARCHITECTURE.md](./ARCHITECTURE.md)** | **System Architecture & Technical Design:** System topology, component breakdown, Socket.io presence engine, database Entity-Relationship Diagram (ERD), security architecture, and Docker containerization. |
-| 🔌 **[API_SPEC.md](./API_SPEC.md)** | **API & WebSocket Specifications:** REST API endpoints, aggregated conversations, payload formats, Clerk webhook event schemas, and Socket.io event catalog. |
-| 🔍 **[PROJECT_REVIEW.md](./PROJECT_REVIEW.md)** | **Comprehensive Codebase Review:** In-depth codebase audit, critical bug report, database schema analysis, drop-in fixes, and step-by-step roadmap. |
-| 🤝 **[CONTRIBUTING.md](./CONTRIBUTING.md)** | **Developer & Contribution Guide:** Local setup instructions, environment configuration, database seeding, Ngrok webhook testing, and git conventions. |
+| [PRD.md](./PRD.md) | **Product Requirements Document** — Vision, personas, user stories with acceptance criteria, functional matrix, NFRs, privacy model, and success KPIs. |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | **System Architecture** — Topology, E2EE crypto layer (ECDH + AES-256-GCM), Socket.io presence engine, database ERD, security architecture, Docker deployment. |
+| [API_SPEC.md](./API_SPEC.md) | **API & WebSocket Specifications** — REST endpoint contracts, E2EE message fields, block/report endpoints, Socket.io event catalog, payload schemas. |
+| [PROJECT_REVIEW.md](./PROJECT_REVIEW.md) | **Project Review & Status** — Completed audit, all bug fixes, security hardening, E2EE implementation status. |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | **Developer Guide** — Local setup, environment config, database seeding, Clerk webhook testing, Docker build. |

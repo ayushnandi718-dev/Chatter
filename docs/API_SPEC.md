@@ -1,220 +1,266 @@
 # API Specification & Integration Contracts — Chatter
 
-> **API Version:** 2.0.0  
-> **Product:** Chatter Full-Stack Real-Time Application  
-> **Base URL (Development):** `http://localhost:3001`  
-> **Base URL (Production):** Current Origin  
-> **Protocols:** REST (HTTP/1.1) & WebSocket (Socket.io)
+> **Version:** 3.0.0
+> **Base URL (Dev):** `http://localhost:3001`
+> **Base URL (Prod):** `https://chatter-lrig.onrender.com`
+> **Protocols:** REST + WebSocket (Socket.io)
 
 ---
 
-## 1. Global Conventions & Authentication
+## 1. Global Conventions
 
-All protected REST routes require a valid Clerk session token passed in the `Authorization` header (`Bearer <token>`) or Clerk session cookies.
+**Authentication:** All protected routes require a valid Clerk session token in the `Authorization: Bearer <token>` header or Clerk session cookies.
 
-### Standard Response Headers
-```http
-Content-Type: application/json; charset=utf-8
-```
+**Privacy:** All user responses use `toPublicUser()` — only `_id`, `username`, `displayName`, `profilePic`, `about` are exposed. Fields `email`, `clerkId`, `fullName` are never sent to other users.
 
-### Standard Error JSON Format
+### Error Format
 ```json
-{
-  "message": "Human readable error description"
-}
+{ "message": "Human readable error" }
 ```
 
 ---
 
 ## 2. REST API Endpoints
 
-### 2.1 Health & Server Uptime
+### 2.1 Health
 
 #### `GET /health`
-- **Description:** Verifies server responsiveness (used by internal keep-alive cron and cloud health probes).
-- **Auth Required:** No
-- **Response `200 OK`:**
-```json
-{
-  "ok": true
-}
-```
+- **Auth:** No
+- **Response:** `{ "ok": true }`
 
 ---
 
-### 2.2 Authentication & User Profile (`/api/auth`)
+### 2.2 Authentication (`/api/auth`)
 
 #### `GET /api/auth/check`
-- **Description:** Returns the authenticated user's MongoDB record matching the Clerk user identity.
-- **Auth Required:** Yes (`protectRoute`)
-- **Response `200 OK`:**
+- **Auth:** Yes
+- **Description:** Returns current user's full profile (including `username`, `displayName`).
+- **Response 200:**
 ```json
 {
-  "_id": "664b8a1c9e8b1234567890ab",
-  "clerkId": "user_2Ne7zY8F9x...",
-  "email": "ayush@example.com",
-  "fullName": "Ayush Nandi",
-  "profilePic": "https://img.clerk.com/...",
-  "createdAt": "2026-08-17T04:00:00.000Z",
-  "updatedAt": "2026-08-17T04:00:00.000Z"
+  "_id": "...",
+  "clerkId": "user_...",
+  "email": "...",
+  "fullName": "...",
+  "username": "ayush_nandi",
+  "displayName": "Ayush N",
+  "profilePic": "https://...",
+  "about": "Hey there!",
+  "createdAt": "...",
+  "updatedAt": "..."
 }
 ```
-- **Response `401 Unauthorized`:** `{ "message": "Unauthorized" }`
-- **Response `404 Not Found`:** `{ "message": "User profile is not synced yet!" }`
+
+#### `POST /api/auth/complete-profile`
+- **Auth:** Yes
+- **Body:** `{ "username": "ayush_nandi", "displayName": "Ayush N" }`
+- **Response 200:** Updated user object.
+- **Error 409:** `{ "message": "Username already taken" }`
+
+#### `DELETE /api/auth/delete-account`
+- **Auth:** Yes
+- **Description:** Deletes user and all associated data (messages, friendships, blocks, reports).
 
 ---
 
-### 2.3 Webhook Synchronization (`/api/webhooks`)
+### 2.3 User Search (`/api/users`)
 
-#### `POST /api/webhooks/clerk`
-- **Description:** Receives Clerk user lifecycle events and synchronizes them to MongoDB.
-- **Auth Required:** Svix Signature Verification (`svix-id`, `svix-timestamp`, `svix-signature`).
-- **Supported Events:**
-  - `user.created`: Creates/upserts user record.
-  - `user.updated`: Synchronizes name, email, or avatar changes.
-  - `user.deleted`: Removes user record from database.
-- **Response `200 OK`:** `{ "received": true }`
-- **Response `400 Bad Request`:** `{ "message": "Webhook verification failed" }`
-
----
-
-### 2.4 Messaging & Directory (`/api/messages`)
-
-#### `GET /api/messages/users`
-- **Description:** Fetches all registered users excluding the currently authenticated user (for contact directory).
-- **Auth Required:** Yes (`protectRoute`)
-- **Response `200 OK`:**
+#### `GET /api/users/search?username=...`
+- **Auth:** Yes
+- **Description:** Search users by username (partial match, ReDoS-safe regex).
+- **Response 200:**
 ```json
 [
   {
-    "_id": "664b8a1c9e8b1234567890ac",
-    "fullName": "Jane Doe",
-    "email": "jane@example.com",
-    "profilePic": "https://img.clerk.com/jane.jpg",
-    "createdAt": "2026-08-17T04:10:00.000Z",
-    "updatedAt": "2026-08-17T04:10:00.000Z"
+    "_id": "...",
+    "username": "ayush_nandi",
+    "displayName": "Ayush N",
+    "profilePic": "https://...",
+    "about": "Hey there!"
   }
 ]
 ```
 
 ---
 
+### 2.4 Friend System (`/api/friends`)
+
+#### `GET /api/friends`
+- **Auth:** Yes
+- **Description:** List all accepted friends.
+- **Response 200:** Array of public user objects.
+
+#### `POST /api/friends/request/:userId`
+- **Auth:** Yes
+- **Description:** Send friend request.
+- **Response 201:** Friendship object.
+- **Error 400:** Already friends or request pending.
+- **Error 404:** User not found.
+
+#### `GET /api/friends/requests`
+- **Auth:** Yes
+- **Description:** List pending incoming friend requests.
+
+#### `PUT /api/friends/accept/:requestId`
+- **Auth:** Yes
+- **Description:** Accept a pending friend request.
+
+#### `PUT /api/friends/reject/:requestId`
+- **Auth:** Yes
+- **Description:** Reject a pending friend request.
+
+#### `DELETE /api/friends/:friendId`
+- **Auth:** Yes
+- **Description:** Remove an existing friend.
+
+---
+
+### 2.5 Block System (`/api/blocks`)
+
+#### `GET /api/blocks`
+- **Auth:** Yes
+- **Description:** List all blocked user IDs.
+- **Response 200:** `{ "blockedUserIds": ["...", "..."] }`
+
+#### `POST /api/blocks/:userId`
+- **Auth:** Yes
+- **Description:** Block a user. Hides conversations and prevents message delivery.
+- **Response 201:** `{ "message": "User blocked" }`
+
+#### `DELETE /api/blocks/:userId`
+- **Auth:** Yes
+- **Description:** Unblock a user.
+- **Response 200:** `{ "message": "User unblocked" }`
+
+---
+
+### 2.6 Reports (`/api/blocks/report`)
+
+#### `POST /api/blocks/report/:userId`
+- **Auth:** Yes
+- **Body:**
+```json
+{
+  "reason": "spam | harassment | inappropriate | other",
+  "description": "Optional details",
+  "messageId": "optional message ID"
+}
+```
+- **Response 201:** `{ "message": "Report submitted" }`
+
+---
+
+### 2.7 Messaging (`/api/messages`)
+
+#### `GET /api/messages/users`
+- **Auth:** Yes
+- **Description:** All users except current (for directory). Only public fields returned.
+
 #### `GET /api/messages/conversations`
-- **Description:** Fetches all conversation partners aggregated with their latest message snippet and timestamp for the conversation sidebar.
-- **Auth Required:** Yes (`protectRoute`)
-- **Response `200 OK`:**
+- **Auth:** Yes
+- **Description:** Aggregated conversation list with last message and partner profile. Only includes users who are mutual friends.
+- **Response 200:**
 ```json
 [
   {
-    "_id": "664b8a1c9e8b1234567890ac",
+    "_id": "partner_user_id",
     "lastMessage": {
-      "_id": "664b901a1c9e8b1234567899",
-      "senderId": "664b8a1c9e8b1234567890ac",
-      "receiverId": "664b8a1c9e8b1234567890ab",
-      "text": "Sounds good! See you then.",
+      "_id": "...",
+      "senderId": "...",
+      "receiverId": "...",
+      "text": "Hello!",
+      "encryptedText": "...",
+      "iv": "...",
+      "clientMessageId": "...",
+      "sequenceNumber": 1,
+      "protocolVersion": 1,
       "image": null,
       "video": null,
-      "createdAt": "2026-08-17T04:25:00.000Z"
+      "audio": null,
+      "file": null,
+      "fileName": "",
+      "fileType": "",
+      "readAt": null,
+      "createdAt": "2026-08-17T..."
     },
     "partner": {
-      "_id": "664b8a1c9e8b1234567890ac",
-      "fullName": "Jane Doe",
-      "email": "jane@example.com",
-      "profilePic": "https://img.clerk.com/jane.jpg"
+      "_id": "...",
+      "username": "jane_doe",
+      "displayName": "Jane D",
+      "profilePic": "https://..."
     }
   }
 ]
 ```
 
----
-
 #### `GET /api/messages/:id`
-- **Description:** Retrieves chronological message history between the authenticated user and user `:id`.
-- **Auth Required:** Yes (`protectRoute`)
-- **Route Parameters:**
-  - `id` (string, required): Partner's MongoDB `_id`.
-- **Response `200 OK`:**
-```json
-[
-  {
-    "_id": "664b901a1c9e8b1234567890",
-    "senderId": "664b8a1c9e8b1234567890ab",
-    "receiverId": "664b8a1c9e8b1234567890ac",
-    "text": "Check out this screenshot!",
-    "image": "https://ik.imagekit.io/chatter/chat/chat-1723867800000-screen.png",
-    "video": null,
-    "createdAt": "2026-08-17T04:15:30.000Z",
-    "updatedAt": "2026-08-17T04:15:30.000Z"
-  }
-]
-```
-
----
+- **Auth:** Yes
+- **Description:** Chronological message history with user `:id`.
+- **Response 200:** Array of message objects (includes E2EE fields + media fields).
 
 #### `POST /api/messages/send/:id`
-- **Description:** Sends a message (text, image, or video) to user `:id` and immediately broadcasts via Socket.io.
-- **Auth Required:** Yes (`protectRoute`)
-- **Route Parameters:**
-  - `id` (string, required): Recipient's MongoDB `_id`.
-- **Content-Type:** `multipart/form-data` (if file attached) or `application/json`
+- **Auth:** Yes
+- **Content-Type:** `multipart/form-data` (with file) or `application/json`
 - **Form Fields:**
-  - `text` (string, optional if file is attached)
-  - `file` (binary file, image or video up to 25MB)
-- **Response `201 Created`:**
-```json
-{
-  "_id": "664b901a1c9e8b1234567899",
-  "senderId": "664b8a1c9e8b1234567890ab",
-  "receiverId": "664b8a1c9e8b1234567890ac",
-  "text": "Check out this screenshot!",
-  "image": "https://ik.imagekit.io/chatter/chat/chat-1723867800000-screen.png",
-  "video": null,
-  "createdAt": "2026-08-17T04:20:00.000Z",
-  "updatedAt": "2026-08-17T04:20:00.000Z"
-}
-```
-- **Error Responses:**
-  - `400 Bad Request`: `{ "message": "Text or media file is required" }`
-  - `500 Server Error`: `{ "message": "Internal server error" }`
+  - `text` (string, optional)
+  - `file` (binary, optional — any type up to 25MB)
+  - `encryptedText` (string, optional — E2EE ciphertext)
+  - `iv` (string, optional — AES-GCM IV)
+  - `clientMessageId` (string, optional — client-generated ID)
+  - `sequenceNumber` (number, optional)
+  - `protocolVersion` (number, optional)
+- **File Handling:** Images go to `image` field, video to `video`, audio to `audio`, everything else to `file`. `fileName`, `fileType`, `fileSize` are stored.
+- **Response 201:** Created message object.
+- **Socket.io:** Emits `newMessage` to receiver if online.
 
 ---
 
-## 3. WebSocket Event Catalog (Socket.io)
+## 3. WebSocket Events (Socket.io)
 
-### 3.1 Handshake & Connection
-- **Endpoint:** `ws://localhost:3001` or `wss://<host>`
-- **Query Parameter:** `?userId=<mongo_user_id>`
-
+### Connection
 ```javascript
-import { io } from "socket.io-client";
-
-const socket = io("http://localhost:3001", {
-    query: { userId: authUser._id },
-});
+const socket = io(SERVER_URL, { query: { userId: authUser._id } });
 ```
 
----
+### Events
 
-### 3.2 Server-to-Client Events
+| Direction | Event | Payload | Description |
+|---|---|---|---|
+| S→C | `getOnlineUsers` | `string[]` | All online user IDs |
+| C→S | `typing` | `{ receiverId }` | User started typing |
+| C→S | `stopTyping` | `{ receiverId }` | User stopped typing |
+| S→C | `typing` | `{ senderId }` | Partner is typing |
+| S→C | `stopTyping` | `{ senderId }` | Partner stopped typing |
+| S→C | `newMessage` | `MessageObject` | New incoming message |
 
-| Event Name | Payload Shape | Description |
-|---|---|---|
-| `getOnlineUsers` | `string[]` (e.g. `["664b8a1c...", "664b8a1d..."]`) | Emitted whenever any user connects or disconnects. Contains all online MongoDB user IDs. |
-| `newMessage` | `MessageObject` | Emitted to the receiver's socket when a new message is sent to them. |
-
----
-
-### 3.3 Message Object Schema (Client & Socket)
-
+### Message Object Schema
 ```typescript
 interface MessageObject {
   _id: string;
   senderId: string;
   receiverId: string;
   text?: string;
+  encryptedText?: string;
+  iv?: string;
+  clientMessageId?: string;
+  sequenceNumber?: number;
+  protocolVersion?: number;
   image?: string | null;
   video?: string | null;
+  audio?: string | null;
+  file?: string | null;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  readAt?: string | null;
   createdAt: string;
-  updatedAt: string;
 }
 ```
+
+---
+
+## 4. Clerk Webhook (`POST /api/webhooks/clerk`)
+
+- **Auth:** Svix signature verification
+- **Events:** `user.created`, `user.updated`, `user.deleted`
+- **Response:** `{ "received": true }`

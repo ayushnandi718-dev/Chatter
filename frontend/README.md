@@ -1,18 +1,47 @@
-# React + Vite
+# Chatter Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite 8 single-page application for the Chatter real-time messaging platform.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19** with React Compiler (automatic memoization)
+- **Vite 8** with Rolldown + Babel plugin
+- **Tailwind CSS 4** with Vite plugin
+- **Zustand 5** for state management (5 stores)
+- **Socket.io Client** for real-time WebSocket communication
+- **Lucide React** for icons
+- **React Router 8** for client-side routing
+- **React Hot Toast** for notifications
+- **Axios** for HTTP requests
+- **Clerk** (`@clerk/react`) for authentication UI
 
-## React Compiler
+## State Stores
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+| Store | Purpose |
+|---|---|
+| `useAuthStore` | Current user profile, auth state, sign-out |
+| `useChatStore` | Active chat, messages, user list, send/decrypt, typing indicators |
+| `useCryptoStore` | ECDH key pair generation, session key exchange, encrypt/decrypt |
+| `useFriendStore` | Friend requests, friend list, search users |
+| `useSoundStore` | Keyboard sound effects toggle |
 
-Note: This will impact Vite dev & build performances.
+## Crypto Layer
 
-## Expanding the ESLint configuration
+- `lib/crypto.js` — ECDH P-256 key generation, HKDF-SHA256 key derivation, AES-256-GCM encrypt/decrypt
+- `lib/crypto-states.js` — CryptoState constants (UNINITIALIZED, GENERATING_KEYS, READY, ERROR)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Scripts
+
+```bash
+npm run dev      # Vite dev server
+npm run build    # Production build
+npm run lint     # ESLint
+npm run preview  # Preview production build
+```
+
+## Environment
+
+```env
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+VITE_API_URL=http://localhost:3001
+```

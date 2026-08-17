@@ -1,215 +1,331 @@
 # System Architecture & Technical Design — Chatter
 
-> **Document Version:** 2.0.0  
-> **Product:** Chatter Full-Stack Real-Time Application  
-> **Target Audience:** Full-Stack Engineers, DevOps, System Architects
+> **Version:** 3.0.0
+> **Product:** Chatter — Private Real-Time Messaging Platform
+> **Audience:** Engineers, DevOps, System Architects
 
 ---
 
-## 1. System Topology & High-Level Architecture
-
-**Chatter** couples a React 19 single-page application with a Node.js/Express and Socket.io server, backed by MongoDB Atlas, Clerk Authentication, and ImageKit CDN.
+## 1. System Topology
 
 ```mermaid
 graph TD
-    subgraph Client ["Frontend (React 19 + Tailwind CSS + Hero UI)"]
-        UI["Chatter UI (Modern Responsive Layout)"]
-        ZAuth["useAuthStore (User Profile & State)"]
-        ZChat["useChatStore (Messages & Active Chat)"]
-        ZSound["useSoundStore (Keyboard Sounds)"]
-        CtxTheme["ThemeContext (11 Presets)"]
-        CtxWall["WallpaperContext (13 Wallpapers)"]
+    subgraph Client ["Frontend (React 19 + Vite 8 + Tailwind CSS 4)"]
+        UI["ChatPage (3-column responsive layout)"]
+        ZAuth["useAuthStore"]
+        ZChat["useChatStore"]
+        ZCrypto["useCryptoStore (E2EE)"]
+        ZFriend["useFriendStore"]
+        ZSound["useSoundStore"]
         SockClient["Socket.io Client"]
     end
 
-    subgraph Managed ["Managed Cloud Services"]
-        ClerkAuth["Clerk Identity & Session Service"]
-        ImageKitCDN["ImageKit.io Media Engine & CDN"]
-        MongoAtlas[("MongoDB Atlas Database")]
+    subgraph Managed ["Cloud Services"]
+        ClerkAuth["Clerk Identity"]
+        MongoAtlas[("MongoDB Atlas (Chatter_db)")]
+        ImageKitCDN["ImageKit.io CDN"]
     end
 
-    subgraph Backend ["Backend Monolith (Express 5 + Socket.io Server)"]
-        HttpServer["Node HTTP Server + Socket.io Engine"]
-        ExpressApp["Express API Application"]
-        SocketManager["Socket Registry (userSocketMap)"]
-        AuthMW["Clerk Express Middleware"]
-        MulterMW["Multer Memory Buffer (25MB)"]
-        ClerkWebhook["Svix Webhook Verifier"]
-        MsgCtrl["Message & Aggregation Controller"]
-        CronKeepAlive["Keep-Alive Cron Service"]
+    subgraph Backend ["Backend (Node.js + Express 5 + Socket.io)"]
+        HttpServer["HTTP Server + Socket.io Engine"]
+        ExpressApp["Express API"]
+        AuthMW["Clerk Middleware"]
+        MulterMW["Multer Memory (25MB)"]
+        ClerkWebhook["Svix Webhook Handler"]
+        SocketReg["Socket Registry (userSocketMap)"]
+        Cron["Keep-Alive Cron (14min)"]
     end
 
-    UI --> ZAuth & ZChat & ZSound & CtxTheme & CtxWall
-    ZChat -->|REST Requests| ExpressApp
-    SockClient <-->|Bi-directional WebSockets| HttpServer
-    HttpServer --> SocketManager
-    ExpressApp --> AuthMW & MulterMW & ClerkWebhook & MsgCtrl
-    AuthMW -->|Validate Session| ClerkAuth
-    ClerkAuth -->|Webhooks /api/webhooks/clerk| ClerkWebhook
-    MulterMW -->|Stream File Buffers| ImageKitCDN
-    MsgCtrl -->|Query & Aggregations| MongoAtlas
-    ClerkWebhook -->|Sync User Documents| MongoAtlas
-    MsgCtrl -->|Emit newMessage| SocketManager
+    UI --> ZAuth & ZChat & ZCrypto & ZFriend & ZSound
+    ZChat -->|REST| ExpressApp
+    SockClient <-->|WebSocket| HttpServer
+    ExpressApp --> AuthMW & MulterMW
+    AuthMW --> ClerkAuth
+    ClerkAuth -->|Webhooks| ClerkWebhook
+    MulterMW --> ImageKitCDN
+    ClerkWebhook --> MongoAtlas
+    ExpressApp --> MongoAtlas
+    SocketReg --> HttpServer
 ```
 
 ---
 
-## 2. Real-Time WebSocket Architecture (`socket.js`)
+## 2. End-to-End Encryption Architecture
+
+### 2.1 Crypto Stack
+
+| Layer | Algorithm | Purpose |
+|---|---|---|
+| Key Agreement | ECDH P-256 | Generate shared secret between two users |
+| Key Derivation | HKDF-SHA256 | Derive AES key from shared secret + salt + info |
+| Encryption | AES-256-GCM | Authenticated encryption with 12-byte IV + 16-byte auth tag |
+| Binding | AAD | Additional Authenticated Data = senderId + receiverId |
+
+### 2.2 Session Key Exchange Flow
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    actor ClientA as User A (Sender)
-    participant SocketServer as Socket.io Server (socket.js)
-    participant DB as MongoDB
-    actor ClientB as User B (Receiver)
+    participant A as User A
+    participant Server as Server
+    participant B as User B
 
-    Note over ClientA,SocketServer: Connection & Presence Handshake
-    ClientA->>SocketServer: io.connect("...", { query: { userId: "userA_id" } })
-    SocketServer->>SocketServer: userSocketMap["userA_id"] = socket.id
-    SocketServer-->>ClientA: emit("getOnlineUsers", Object.keys(userSocketMap))
-    SocketServer-->>ClientB: emit("getOnlineUsers", Object.keys(userSocketMap))
+    Note over A: Generate ECDH P-256 key pair
+    Note over B: Generate ECDH P-256 key pair
 
-    Note over ClientA,ClientB: Sending Message
-    ClientA->>SocketServer: HTTP POST /api/messages/send/userB_id (Text + File)
-    SocketServer->>DB: Save Message Document
-    SocketServer->>SocketServer: receiverSocketId = userSocketMap["userB_id"]
-    alt Receiver is Online
-        SocketServer-->>ClientB: emit("newMessage", savedMessage)
-    end
-    SocketServer-->>ClientA: HTTP 201 Created (savedMessage)
+    A->>Server: POST /api/e2ee/public-key { publicKey (JWK) }
+    B->>Server: POST /api/e2ee/public-key { publicKey (JWK) }
+    Server->>Server: Store both public keys in User model
 
-    Note over ClientA,SocketServer: Disconnect & Cleanup
-    ClientA->>SocketServer: socket.disconnect()
-    SocketServer->>SocketServer: delete userSocketMap["userA_id"]
-    SocketServer-->>ClientB: emit("getOnlineUsers", Object.keys(userSocketMap))
+    A->>Server: GET /api/e2ee/session-key/:partnerId
+    Server->>B: (via Socket.io) e2ee:session-key-request
+    B->>Server: POST /api/e2ee/session-key { partnerId, encryptedSessionKey, iv }
+    Server->>A: (via Socket.io) e2ee:session-key { encryptedSessionKey, iv }
+
+    Note over A: Decrypt session key with ECDH shared secret
+    Note over A: Store in IndexedDB (useCryptoStore)
+    Note over B: Store in IndexedDB (useCryptoStore)
+
+    Note over A,B: All subsequent messages encrypted with AES-256-GCM
 ```
 
-### 2.1 Online User Registry Pattern
-```javascript
-// backend/src/lib/socket.js
-const userSocketMap = {}; // { userId: socketId }
+### 2.3 Message Encryption
 
-export function getReceiverSocketId(userId) {
-    return userSocketMap[userId];
-}
-
-io.on("connection", (socket) => {
-    const userId = socket.handshake.query.userId;
-    if (userId) userSocketMap[userId] = socket.id;
-
-    // Broadcast online users to everyone connected
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
-
-    socket.on("disconnect", () => {
-        if (userId) delete userSocketMap[userId];
-        io.emit("getOnlineUsers", Object.keys(userSocketMap));
-    });
-});
 ```
+Plaintext "Hello" 
+  -> AES-256-GCM encrypt(key, iv, AAD=senderId+receiverId, plaintext)
+  -> { encryptedText, iv, clientMessageId, sequenceNumber, protocolVersion }
+  -> POST to server (server stores ciphertext only)
+```
+
+### 2.4 Client-Side Files
+
+| File | Purpose |
+|---|---|
+| `lib/crypto.js` | ECDH key generation, HKDF derivation, AES-GCM encrypt/decrypt, `cryptoSelfTest()` |
+| `lib/crypto-states.js` | CryptoState enum: UNINITIALIZED, GENERATING_KEYS, READY, ERROR |
+| `store/useCryptoStore.js` | Key pair management, session key exchange, message encrypt/decrypt, IndexedDB persistence |
 
 ---
 
-## 3. Database Schema & Aggregation Pipeline
+## 3. Database Schema
 
 ```mermaid
 erDiagram
-    USER ||--o{ MESSAGE : "sends (senderId)"
-    USER ||--o{ MESSAGE : "receives (receiverId)"
+    USER ||--o{ MESSAGE : "sends"
+    USER ||--o{ MESSAGE : "receives"
+    USER ||--o{ FRIENDSHIP : "initiator"
+    USER ||--o{ FRIENDSHIP : "receiver"
+    USER ||--o{ BLOCK : "blocker"
+    USER ||--o{ BLOCK : "blocked"
+    USER ||--o{ REPORT : "reporter"
+    USER ||--o{ REPORT : "reported"
 
     USER {
         ObjectId _id PK
-        string clerkId UK "Unique Clerk Identifier"
-        string email UK "Unique Email Address"
-        string fullName "User's Full Display Name"
-        string profilePic "User Avatar URL from Clerk/CDN"
-        Date createdAt "Timestamp"
-        Date updatedAt "Timestamp"
+        string clerkId UK
+        string email UK
+        string fullName
+        string username UK "Unique Discord-style"
+        string displayName "Public display name"
+        string profilePic
+        string about "Bio/status"
+        object identityKey "WebCrypto CryptoKey (JWK)"
+        object signingKey "WebCrypto CryptoKey (JWK)"
+        Date createdAt
+        Date updatedAt
     }
 
     MESSAGE {
         ObjectId _id PK
-        ObjectId senderId FK "References USER._id"
-        ObjectId receiverId FK "References USER._id"
-        string text "Optional Message Text Body"
-        string image "Optional Image CDN URL"
-        string video "Optional Video CDN URL"
-        Date createdAt "Message Timestamp (Indexed)"
-        Date updatedAt "Timestamp"
+        ObjectId senderId FK
+        ObjectId receiverId FK
+        string text "Legacy plaintext"
+        string encryptedText "E2EE ciphertext"
+        string iv "AES-GCM initialization vector"
+        string clientMessageId "Client-generated for AAD"
+        number sequenceNumber "Ordering"
+        number protocolVersion "E2EE version"
+        string image "ImageKit URL"
+        string video "ImageKit URL"
+        string audio "ImageKit URL"
+        string file "Document URL"
+        string fileName "Original filename"
+        string fileType "MIME type"
+        number fileSize "Bytes"
+        Date readAt "Read receipt"
+        Date createdAt
+        Date updatedAt
+    }
+
+    FRIENDSHIP {
+        ObjectId _id PK
+        ObjectId requester FK
+        ObjectId recipient FK
+        string status "pending | accepted | rejected"
+        Date createdAt
+    }
+
+    BLOCK {
+        ObjectId _id PK
+        ObjectId blocker FK
+        ObjectId blocked FK
+        Date createdAt
+    }
+
+    REPORT {
+        ObjectId _id PK
+        ObjectId reporter FK
+        ObjectId reported FK
+        ObjectId messageId FK "Optional"
+        string reason "spam | harassment | inappropriate | other"
+        string description
+        string status "pending | reviewed | resolved"
+        Date createdAt
     }
 ```
 
-### 3.1 Aggregated Conversations Query
-To render the sidebar with the last message and contact details:
+---
+
+## 4. Socket.io Architecture
+
+### 4.1 Connection & Presence
+
 ```javascript
-export async function getConversationsForSidebar(req, res) {
-    const loggedInUserId = req.user._id;
+// User connects with userId query param
+const socket = io(SERVER_URL, { query: { userId } });
 
-    const conversations = await Message.aggregate([
-        // 1. Match messages where user is sender or receiver
-        { $match: { $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }] } },
-        // 2. Sort by latest message first
-        { $sort: { createdAt: -1 } },
-        // 3. Group by the conversation partner
-        {
-            $group: {
-                _id: { $cond: [{ $eq: ["$senderId", loggedInUserId] }, "$receiverId", "$senderId"] },
-                lastMessage: { $first: "$$ROOT" },
-            },
-        },
-        // 4. Lookup partner profile details
-        {
-            $lookup: {
-                from: "users",
-                localField: "_id",
-                foreignField: "_id",
-                as: "partner",
-            },
-        },
-        { $unwind: "$partner" },
-        { $project: { "partner.clerkId": 0 } },
-    ]);
+// Server validates userId against MongoDB
+// Updates userSocketMap: { userId: socketId }
+// Broadcasts getOnlineUsers to all clients
+```
 
-    res.status(200).json(conversations);
-}
+### 4.2 Events
+
+| Direction | Event | Payload | Description |
+|---|---|---|---|
+| Client→Server | `connection` | `{ userId }` | Handshake + presence registration |
+| Server→Client | `getOnlineUsers` | `string[]` | All online user IDs |
+| Client→Server | `typing` | `{ receiverId }` | User is typing |
+| Client→Server | `stopTyping` | `{ receiverId }` | User stopped typing |
+| Server→Client | `typing` | `{ senderId }` | Partner is typing |
+| Server→Client | `stopTyping` | `{ senderId }` | Partner stopped typing |
+| Server→Client | `newMessage` | `MessageObject` | New incoming message |
+| Server→Client | `e2ee:session-key-request` | `{ senderId }` | Session key exchange request |
+| Client→Server | `e2ee:session-key` | `{ partnerId, ... }` | Session key response |
+
+---
+
+## 5. Frontend Architecture
+
+### 5.1 Component Tree
+
+```
+App
+├── ThemeProvider (ThemeContext — 11 themes)
+│   └── WallpaperProvider (WallpaperContext — 13 wallpapers)
+│       ├── Router
+│       │   ├── AuthPage (/login) — Clerk UI + UsernameModal
+│       │   └── ChatPage (/) — 3-column layout
+│       │       ├── Sidebar (Chats tab + Friends tab + SearchUsers)
+│       │       ├── ChatHeader (name, online, E2EE badge, menu: Wallpaper, Block)
+│       │       │   └── WallpaperModal
+│       │       ├── MessageList (date separators, E2EE badge, media)
+│       │       │   └── MediaModal (lightbox)
+│       │       ├── ChatComposer (text + attach menu + voice recorder)
+│       │       └── FriendRequests (pending requests)
+│       ├── PageLoader
+│       └── NoChatSelected
+```
+
+### 5.2 State Management (Zustand)
+
+| Store | Responsibility |
+|---|---|
+| `useAuthStore` | `authUser`, `isCheckingAuth`, `checkAuth()`, `logout()` |
+| `useChatStore` | `messages`, `selectedUser`, `onlineUsers`, `sendMessage()`, typing indicators |
+| `useCryptoStore` | Identity keys, session keys, `encryptMessage()`, `decryptMessage()` |
+| `useFriendStore` | `friends`, `friendRequests`, `sendRequest()`, `acceptRequest()` |
+| `useSoundStore` | `isSoundEnabled`, `playKeystrokeSound()`, `playSentSound()` |
+
+### 5.3 Design System
+
+CSS variables defined in `index.css`:
+- Background: `--bg-app`, `--bg-sidebar`, `--bg-chat`, `--bg-surface`, `--bg-elevated`, `--bg-hover`
+- Text: `--text-primary`, `--text-secondary`, `--text-muted`
+- Accent: `--accent`, `--accent-muted`
+- Semantic: `--success`, `--danger`, `--warning`, `--border`
+- Shadows: `--shadow-sm`, `--shadow-md`
+- Spacing: `--radius`
+
+All 11 themes override these variables. Zero hardcoded Tailwind color classes.
+
+---
+
+## 6. Security Architecture
+
+### 6.1 Defense Layers
+
+| Layer | Mechanism |
+|---|---|
+| Auth | Clerk session tokens verified by `@clerk/express` middleware |
+| Webhook | Svix cryptographic signature verification |
+| API Privacy | `toPublicUser()` strips email, clerkId, fullName from all responses |
+| Input Safety | ReDoS-safe regex for username search, Socket.io userId validation |
+| File Upload | In-memory Multer (zero disk writes), 25MB limit |
+| CORS | Production: only `FRONTEND_URL`; localhost excluded |
+| E2EE | Server never sees plaintext; AAD prevents cross-conversation decryption |
+| Container | Non-root `node` user, production-only dependencies |
+
+### 6.2 Data Flow for E2EE Message
+
+```
+User A types "Hello"
+  -> useCryptoStore.encryptMessage("Hello", partnerId)
+  -> AES-256-GCM encrypt with session key + AAD(senderA, receiverB)
+  -> POST /api/messages/send/:id { encryptedText, iv, clientMessageId }
+  -> Server stores ciphertext in MongoDB
+  -> Socket.io emits to User B
+  -> User B's useCryptoStore.decryptMessage(msg)
+  -> AES-256-GCM decrypt with session key + AAD(senderA, receiverB)
+  -> Plaintext rendered in MessageList
 ```
 
 ---
 
-## 4. Frontend Architecture & State Management
+## 7. Deployment Architecture
 
-```mermaid
-graph TD
-    App[App.jsx] --> WallpaperProvider[WallpaperContext (13 Wallpapers)]
-    WallpaperProvider --> ThemeProvider[ThemeContext (11 Themes)]
-    ThemeProvider --> Router[React Router]
-    Router --> AuthPage[AuthPage (/login)]
-    Router --> ChatPage[ChatPage (/)]
-    
-    subgraph Stores ["Zustand Reactive State Stores"]
-        useAuthStore["useAuthStore (authUser, isCheckingAuth, checkAuth)"]
-        useChatStore["useChatStore (messages, users, selectedUser, isMessagesLoading)"]
-        useSoundStore["useSoundStore (isSoundEnabled, playKeyStroke, playSentSound)"]
-    end
+### 7.1 Docker Multi-Stage Build
 
-    ChatPage --> Sidebar[Sidebar (User List, Search, Online Indicators)]
-    ChatPage --> ChatContainer[Chat Window (Header, Messages, Input)]
-    ChatPage --> NoChatSelected[Empty State Placeholder]
-    ChatContainer --> MessageList[Message Feed (Bubbles, Lightbox, Videos)]
-    ChatContainer --> MessageInput[Input Bar (Emoji, Media Attachment, Send)]
+| Stage | Name | Purpose |
+|---|---|---|
+| 1 | `frontend-build` | Vite production build (static SPA) |
+| 2 | `backend-build` | Copy ESM source to `dist/` |
+| 3 | `runner` | Production runtime (node:22-bookworm-slim, non-root, port 3001) |
+
+### 7.2 Render Deployment
+
+- Auto-deploy from `main` branch
+- Free tier with keep-alive cron (14-minute interval)
+- Environment variables set in Render dashboard
+- Serves both SPA (static) and API (Express) from single port
+
+### 7.3 Environment Variables
+
+**Backend:**
+```
+PORT=3000
+MONGO_URI=mongodb+srv://...
+CLERK_PUBLISHABLE_KEY=pk_...
+CLERK_SECRET_KEY=sk_...
+CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
+IMAGEKIT_PUBLIC_KEY=public_...
+IMAGEKIT_PRIVATE_KEY=private_...
+FRONTEND_URL=http://localhost:5173
+NODE_ENV=development
 ```
 
----
-
-## 5. Security & Container Deployment
-
-### 5.1 Defense-in-Depth Security
-1. **Clerk Token Verification:** All REST endpoints verify session claims via `@clerk/express` and map them to MongoDB `_id`.
-2. **Svix Cryptographic Webhook Check:** Webhook secret verifies payload authenticity before altering MongoDB.
-3. **In-Memory Multer Processing:** Zero disk writes prevent temporary file vulnerabilities and disk exhaustion attacks.
-4. **Least-Privilege Docker Image:** The runtime image uses `USER node` and non-root execution.
-
-### 5.2 Multi-Stage Dockerfile Execution
-- **Stage 1 (Frontend Build):** Pre-compiles Vite SPA into static assets.
-- **Stage 2 (Backend Build):** Copies backend ESM source code to `dist/`.
-- **Stage 3 (Runner):** Integrates static frontend into `/app/public`, installs production-only dependencies, and launches the Express + Socket.io server on port `3001`.
+**Frontend:**
+```
+VITE_CLERK_PUBLISHABLE_KEY=pk_...
+VITE_API_URL=http://localhost:3001
+```

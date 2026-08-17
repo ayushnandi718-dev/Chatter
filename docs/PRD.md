@@ -1,135 +1,185 @@
 # Product Requirements Document (PRD) — Chatter
 
-> **Document Version:** 2.0.0  
-> **Product Name:** Chatter — Real-Time Media Messaging & Web Platform  
-> **Product Owner:** Ayush Nandi  
-> **Document Status:** Approved / Execution Blueprint
+> **Version:** 3.0.0
+> **Product:** Chatter — Private Real-Time Messaging Platform
+> **Owner:** Ayush Nandi
 
 ---
 
-## 1. Executive Summary & Product Vision
+## 1. Vision
 
-### 1.1 Vision Statement
-**Chatter** is a modern, ultra-responsive, full-stack real-time messaging platform. It delivers instant 1-on-1 direct messaging, fluid media sharing (photos & videos up to 25MB), 11 rich UI themes, 13 custom wallpapers, optional mechanical keyboard sound effects, live presence indicators, and seamless social authentication via Clerk.
-
-### 1.2 Core Value Propositions
-1. **Premium Modern Experience:** Elegant, distraction-free chatting interface with custom backgrounds, bubble styling, and auditory feedback.
-2. **Instant Real-Time WebSocket Engine:** Custom Socket.io server delivering sub-100ms message delivery and live online/offline user tracking.
-3. **Rich Cloud Media Pipeline:** Zero-disk media upload using Multer memory streams directly to ImageKit CDN for instant processing and streaming.
-4. **Frictionless Auth & Sync:** Clerk social logins (Google, GitHub, Email) synchronized automatically with MongoDB via verified Svix webhooks.
-5. **Turnkey Deployment:** Monolithic Docker multi-stage container serving the optimized Vite SPA and Express API from a single lightweight container.
+**Chatter** is a full-stack real-time messaging platform with end-to-end encryption, anonymous identity, rich media sharing, and a premium UI. It delivers private 1-on-1 messaging with Discord-style usernames, friend management, block/report controls, and mobile-first responsive design.
 
 ---
 
-## 2. Target Personas & User Journeys
+## 2. Core Value Propositions
 
-| Persona | Needs & Goals | Core Features Utilized |
+1. **End-to-End Encrypted Messaging** — ECDH P-256 + AES-256-GCM. Server never sees plaintext.
+2. **Anonymous Identity** — Discord-style usernames. Email, Clerk ID, and full name are never exposed to other users.
+3. **Rich Media Sharing** — Photos, videos, voice messages, documents (PDF/DOCX/XLSX/TXT), and any file up to 25MB.
+4. **Friend System** — Search by username, send/accept/reject requests, friends-only conversation list.
+5. **Block & Report** — Block users to hide conversations and prevent messages. Report with reason categories.
+6. **Premium UI** — 11 themes, 13 wallpapers, CSS variable design system, keyboard sound effects.
+7. **Mobile First** — Safe-area insets, touch targets, responsive 3-column layout.
+8. **Turnkey Deployment** — Docker multi-stage monolith on Render.
+
+---
+
+## 3. Target Personas
+
+| Persona | Goals | Features Used |
 |---|---|---|
-| **Casual User (Mobile & Desktop)** | Wants an intuitive, aesthetic chat app to text and share photos/videos with friends. | 1-on-1 chat, media attachment preview, light/dark mode, custom wallpapers, keyboard sounds. |
-| **Power User / Designer** | Desires personalization and high responsiveness with immediate feedback. | 11 theme presets (Cupcake, Synthwave, Cyberpunk, Forest, etc.), audio toggles, responsive sidebar. |
-| **System Administrator / Developer** | Needs zero-fuss deployment, clear REST/Socket contracts, and automatic server health assurance. | Clerk webhooks, keep-alive cron, MongoDB aggregations, Docker single-port container. |
+| **Casual User** | Intuitive chat with friends, share media | 1-on-1 chat, file/photo/video/voice sharing, themes, wallpapers |
+| **Privacy-Conscious User** | Secure messaging, anonymous identity | E2EE encryption, username-only identity, block/report |
+| **Power User** | Personalization, fast experience | 11 themes, keyboard sounds, responsive design |
+| **Developer/DevOps** | Easy deployment, clear contracts | Docker monolith, REST + WebSocket specs, Clerk webhooks |
 
 ---
 
-## 3. User Stories & Acceptance Criteria
+## 4. User Stories & Acceptance Criteria
 
-```mermaid
-graph TD
-    A[User Arrives] --> B{Authenticated?}
-    B -- No --> C[Clerk Auth Modal / Sign In / Sign Up]
-    C --> D[Webhook syncs profile to MongoDB]
-    D --> E[Redirect to /chat]
-    B -- Yes --> E
-    E --> F[Socket.io connects & joins presence room]
-    E --> G[Sidebar loads contacts & aggregated conversations]
-    G --> H[Select Contact]
-    H --> I[Fetch Chat History & Real-Time Stream]
-    I --> J[Send Text, Photo, or Video]
-    I --> K[Personalize: Wallpaper, Theme, Keyboard Audio]
-```
+### 4.1 Authentication & Identity
+- **US-1.1:** Sign in via Google, GitHub, or Email/Password through Clerk.
+  - Backend webhook syncs user to MongoDB automatically.
+  - Profile completion modal for setting username and display name.
+- **US-1.2:** Set a unique Discord-style username and display name.
+  - Username is unique, lowercase, alphanumeric + underscores.
+  - Display name is what other users see in chat.
 
-### 3.1 Authentication & Profile Sync
-- **US-1.1:** As a user, I want to sign in via Google, GitHub, or Email/Password without friction.
-  - **Acceptance Criteria:**
-    - Modal or dedicated authentication page powered by `@clerk/react`.
-    - Backend webhook `/api/webhooks/clerk` securely verifies incoming Svix signatures and upserts the user document in MongoDB.
-    - Protected API routes validate the user session using `@clerk/express`.
+### 4.2 Privacy Model
+- **US-2.1:** My email, Clerk ID, and full name are never visible to other users.
+  - API responses use `toPublicUser()` — only `_id`, `username`, `displayName`, `profilePic`, `about` are exposed.
+  - Socket.io userId validated against MongoDB on connection.
 
-### 3.2 Contact Directory & Conversation Sidebar
-- **US-2.1:** As a user, I want to see a list of contacts with their profile picture, online/offline status, and their latest conversation message.
-  - **Acceptance Criteria:**
-    - Sidebar queries `GET /api/messages/users` and `GET /api/messages/conversations`.
-    - Real-time green indicator badge displays when a user is connected via Socket.io.
-    - Client-side search input dynamically filters contacts by name.
+### 4.3 End-to-End Encryption
+- **US-3.1:** My text messages are encrypted so the server cannot read them.
+  - ECDH P-256 key exchange generates per-conversation AES-256-GCM session keys.
+  - Encrypted payload includes `encryptedText`, `iv`, `clientMessageId`, `sequenceNumber`, `protocolVersion`.
+  - Decrypt failure shows "[Encrypted]" fallback, never crashes the UI.
 
-### 3.3 Real-Time 1-on-1 Messaging
-- **US-3.1:** As a user, I want to chat in real-time with instant message delivery without page refreshing.
-  - **Acceptance Criteria:**
-    - Messages dispatched via `POST /api/messages/send/:id` are saved to MongoDB and immediately emitted via `io.to(receiverSocketId).emit("newMessage", message)`.
-    - Outgoing messages render aligned right (accent colored); incoming messages render aligned left.
-    - Chat window auto-scrolls smoothly to the bottom on new incoming and outgoing messages.
+### 4.4 Messaging
+- **US-4.1:** Send text messages in real-time via Socket.io.
+  - Messages appear instantly for sender and receiver.
+  - Auto-scroll to bottom on new messages.
+- **US-4.2:** Send photos and videos up to 25MB.
+  - Inline preview before sending.
+  - Image lightbox viewer on click.
+  - Video with HTML5 controls.
+- **US-4.3:** Send voice messages.
+  - Record via MediaRecorder API with duration indicator.
+  - Playback inline with audio controls.
+- **US-4.4:** Send documents and files (PDF, DOCX, XLSX, TXT, ZIP, CSV).
+  - File icon, name, and size displayed.
+  - Download link on click.
+  - Auto-detected by MIME type (image, video, audio, or generic file).
 
-### 3.4 Media Attachments (Images & Videos)
-- **US-4.1:** As a user, I want to send photos or videos up to 25MB and preview them before sending.
-  - **Acceptance Criteria:**
-    - Attachment button opens file dialog filtered for `image/*` and `video/*`.
-    - Selected file renders an inline preview container with a discard (✕) button.
-    - During upload, a loading indicator disables multiple submissions.
-    - Sent images render in a responsive media frame; sent videos render with inline HTML5 video controls.
+### 4.5 Friend System
+- **US-5.1:** Search for users by username.
+- **US-5.2:** Send friend requests.
+- **US-5.3:** Accept or reject incoming requests.
+- **US-5.4:** Only friends appear in the conversation sidebar.
 
-### 3.5 Personalization & Sensory Experience
-- **US-5.1:** As a user, I want to customize the visual appearance and auditory feedback of my chat room.
-  - **Acceptance Criteria:**
-    - **11 Curated Themes:** Dropdown to switch themes (Light, Dark, Cupcake, Synthwave, Retro, Cyberpunk, Valentine, Halloween, Forest, Aqua, Luxury).
-    - **13 Wallpapers:** Wallpaper picker to apply background patterns/artwork behind the chat window.
-    - **Mechanical Keyboard Sound Effects:** Toggleable audio setting that plays clicky keystroke audio on typing and sending.
+### 4.6 Block & Report
+- **US-6.1:** Block a user from the chat header menu.
+  - Blocked user is hidden from sidebar.
+  - Messages from blocked user are not delivered.
+- **US-6.2:** Unblock a user.
+- **US-6.3:** Report a user with reason (spam, harassment, inappropriate content, other).
+
+### 4.7 Personalization
+- **US-7.1:** Switch between 11 themes (Dark, Light, Cupcake, Synthwave, Retro, Cyberpunk, Valentine, Halloween, Forest, Aqua, Luxury).
+- **US-7.2:** Choose from 13 custom chat wallpapers.
+- **US-7.3:** Toggle mechanical keyboard sound effects.
+
+### 4.8 Mobile Experience
+- **US-8.1:** Responsive 3-column layout (sidebar | chat | details).
+- **US-8.2:** Safe-area insets for notch/toolbar devices.
+- **US-8.3:** 36px minimum touch targets.
+- **US-8.4:** Overscroll prevention and tap-highlight removal.
 
 ---
 
-## 4. Functional Requirements Matrix
+## 5. Functional Requirements Matrix
 
-| Module | Feature ID | Description | Priority | Status |
+| Module | ID | Feature | Priority | Status |
 |---|---|---|---|---|
-| **Auth** | AUTH-01 | Clerk Auth integration (React + Express) | P0 | ✅ Implemented |
-| **Auth** | AUTH-02 | Clerk Webhook user sync (`user.created`, `user.updated`, `user.deleted`) | P0 | ✅ Implemented |
-| **Auth** | AUTH-03 | Database user profile verification (`GET /api/auth/check`) | P0 | ✅ Implemented |
-| **Socket** | SOCK-01 | Custom HTTP/Socket.io server with `userSocketMap` | P0 | 📋 Blueprint Ready |
-| **Socket** | SOCK-02 | Online user presence tracking (`getOnlineUsers`) | P0 | 📋 Blueprint Ready |
-| **Socket** | SOCK-03 | Real-time private message forwarding (`newMessage`) | P0 | 📋 Blueprint Ready |
-| **Chat** | MSG-01 | Fetch sidebar users (`GET /api/messages/users`) | P0 | 🔄 Pending Export |
-| **Chat** | MSG-02 | Fetch conversation partners & last message (`GET /api/messages/conversations`) | P1 | 📋 Blueprint Ready |
-| **Chat** | MSG-03 | Fetch chronological messages (`GET /api/messages/:id`) | P0 | 🔄 Pending Implementation |
-| **Chat** | MSG-04 | Send text & media message (`POST /api/messages/send/:id`) | P0 | 🔄 Pending Implementation |
-| **Media** | MED-01 | Multer 25MB memory-storage upload middleware | P0 | ✅ Implemented |
-| **Media** | MED-02 | ImageKit cloud upload helper (`uploadChatMedia`) | P0 | 🛠️ Bug Fix Required |
-| **Media** | MED-03 | Frontend Image/Video preview & lightbox viewer | P1 | 📋 Blueprint Ready |
-| **Theme** | THM-01 | 11 Custom UI Themes via ThemeContext | P1 | 📋 Blueprint Ready |
-| **Theme** | THM-02 | 13 Custom Wallpapers via WallpaperContext | P1 | 📋 Blueprint Ready |
-| **Audio** | AUD-01 | Optional mechanical keyboard typing & message sent sounds | P2 | 📋 Blueprint Ready |
-| **Infra** | INF-01 | Server health check endpoint (`/health`) | P0 | ✅ Implemented |
-| **Infra** | INF-02 | 14-minute keep-alive cron for free-tier hosting | P1 | ✅ Implemented |
-| **Infra** | INF-03 | Multi-stage Docker container build | P0 | ✅ Implemented |
+| Auth | AUTH-01 | Clerk authentication (social + email) | P0 | Done |
+| Auth | AUTH-02 | Webhook auto-sync to MongoDB | P0 | Done |
+| Auth | AUTH-03 | Username/display name setup modal | P0 | Done |
+| Privacy | PRV-01 | `toPublicUser()` field stripping | P0 | Done |
+| Privacy | PRV-02 | Socket.io userId validation | P0 | Done |
+| Privacy | PRV-03 | ReDoS-safe search regex | P1 | Done |
+| E2EE | E2E-01 | ECDH P-256 key pair generation | P0 | Done |
+| E2EE | E2E-02 | Per-conversation session key exchange | P0 | Done |
+| E2EE | E2E-03 | AES-256-GCM encrypt/decrypt | P0 | Done |
+| E2EE | E2E-04 | AAD binding (senderId + receiverId) | P0 | Done |
+| E2EE | E2E-05 | Key fingerprint verification | P1 | Done |
+| E2EE | E2E-06 | clientMessageId for AAD consistency | P0 | Done |
+| Chat | MSG-01 | Real-time text messaging (Socket.io) | P0 | Done |
+| Chat | MSG-02 | Conversation sidebar (aggregated) | P0 | Done |
+| Chat | MSG-03 | Typing indicators | P1 | Done |
+| Media | MED-01 | Photo upload (Multer + ImageKit) | P0 | Done |
+| Media | MED-02 | Video upload | P0 | Done |
+| Media | MED-03 | Voice message recording + upload | P1 | Done |
+| Media | MED-04 | Document/file upload (PDF, DOCX, etc.) | P1 | Done |
+| Media | MED-05 | Image lightbox viewer | P1 | Done |
+| Friends | FRD-01 | Search users by username | P0 | Done |
+| Friends | FRD-02 | Send/accept/reject friend requests | P0 | Done |
+| Friends | FRD-03 | Friends-only conversation sidebar | P0 | Done |
+| Safety | BLK-01 | Block user | P1 | Backend done |
+| Safety | BLK-02 | Unblock user | P1 | Backend done |
+| Safety | BLK-03 | Report user with reason | P1 | Backend done |
+| Safety | BLK-04 | Block/unblock UI in chat header | P1 | Pending |
+| UI | THM-01 | 11 dynamic themes (CSS variables) | P1 | Done |
+| UI | THM-02 | 13 chat wallpapers | P1 | Done |
+| UI | THM-03 | Keyboard sound effects | P2 | Done |
+| Mobile | MOB-01 | Responsive 3-column layout | P0 | Done |
+| Mobile | MOB-02 | Safe-area insets | P1 | Done |
+| Mobile | MOB-03 | Touch targets (36px) | P1 | Done |
+| Infra | INF-01 | Docker multi-stage monolith | P0 | Done |
+| Infra | INF-02 | Keep-alive cron (14min) | P1 | Done |
+| Infra | INF-03 | Render deployment | P0 | Done |
 
 ---
 
-## 5. Non-Functional Requirements (NFR)
+## 6. Non-Functional Requirements
 
-### 5.1 Performance & Responsiveness
-- **WebSocket Latency:** Instant messaging relay latency must average `< 80ms`.
-- **Database Query Efficiency:** Message queries must utilize compound indexes on `{ senderId, receiverId, createdAt }`.
-- **Media Delivery:** All uploaded images and videos served through ImageKit global CDN with optimized caching headers.
+### 6.1 Performance
+- WebSocket message latency < 100ms.
+- MongoDB compound indexes on `{ senderId, receiverId, createdAt }`.
+- Media served via ImageKit global CDN with caching headers.
 
-### 5.2 Security & Integrity
-- **JWT & Session Security:** Authentication enforced on every private route using `@clerk/express` and Clerk claims validation.
-- **Webhook Cryptographic Check:** Strict Svix signature verification preventing forged webhook events.
-- **In-Memory Streaming:** Media files are piped from memory buffers directly to ImageKit without touching the server's local filesystem.
-- **Container Hardening:** Production Docker image drops root privileges and executes as `USER node`.
+### 6.2 Security
+- Clerk session verification on every protected route.
+- Svix cryptographic webhook verification.
+- In-memory Multer processing (zero disk writes).
+- `toPublicUser()` strips sensitive fields at API layer.
+- Socket.io userId validated against MongoDB.
+- CORS localhost excluded in production.
+- Non-root Docker execution.
+
+### 6.3 Encryption
+- ECDH P-256 for key agreement (no RSA).
+- HKDF-SHA256 for key derivation.
+- AES-256-GCM for authenticated encryption.
+- Per-conversation session keys.
+- AAD binding prevents cross-conversation decryption.
+- Key fingerprints for verification.
+
+### 6.4 Mobile
+- `viewport-fit=cover` for notch devices.
+- `safe-area-inset-*` CSS variables.
+- `overscroll-behavior: none`.
+- Minimum 36px touch targets.
 
 ---
 
-## 6. Success Metrics & KPIs
+## 7. Success Metrics
 
-1. **Message Latency:** <100ms average socket dispatch time.
-2. **Delivery Success Rate:** 99.9% across text and media messages.
-3. **Identity Sync Rate:** 100% data consistency between Clerk identity and MongoDB `users` collection.
-4. **Theme & Audio Engagement:** Fast local storage persistence of theme, wallpaper, and sound preferences without UI stutter.
+| Metric | Target |
+|---|---|
+| Message delivery latency | < 100ms |
+| Delivery success rate | 99.9% |
+| Identity sync rate | 100% (Clerk <-> MongoDB) |
+| E2EE encryption success | 99.9% |
+| Mobile usability | All touch targets >= 36px |

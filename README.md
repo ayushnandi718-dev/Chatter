@@ -1,114 +1,139 @@
-# Chatter 💬
+# Chatter
 
-> A modern, full-stack real-time messaging application with rich media sharing, Clerk authentication, ImageKit media CDN, Socket.io presence, and MongoDB Atlas persistence.
+> A modern, full-stack private messaging platform with end-to-end encryption, Discord-style anonymous identity, real-time chat, rich media sharing, and premium UI.
 
----
-
-## ✨ Core Features
-
-- 💬 **Full-Stack Real-Time Messaging:** Instant 1-on-1 direct messaging powered by custom Socket.io server.
-- 🟢 **Live Online Presence:** Real-time online/offline indicator badges and dynamic user registry.
-- 🖼️ **Rich Media Sharing:** Zero-disk photo and video uploads (up to 25MB) via Multer and ImageKit CDN.
-- 🔐 **Clerk Authentication:** Social logins (Google, GitHub, Email/Password) with automatic MongoDB webhook sync.
-- 🎨 **11 Themes & 13 Wallpapers:** Dynamic theme switcher (Dark, Light, Cupcake, Synthwave, Cyberpunk, Forest, etc.) and custom chat wallpapers.
-- ⌨️ **Mechanical Keyboard Sound Effects:** Toggleable typing audio and sent message sound feedback.
-- ⏰ **Uptime Protection:** Automated 14-minute cron job to keep free-tier instances awake.
-- 🐳 **Monolithic Docker Deployment:** Single multi-stage container serving both the Vite React SPA and Express API.
+**Live:** [chatter-lrig.onrender.com](https://chatter-lrig.onrender.com) | **Repo:** [github.com/ayushnandi718-dev/Chatter](https://github.com/ayushnandi718-dev/Chatter)
 
 ---
 
-## 📑 Complete Documentation Suite (`/docs`)
+## Features
 
-All project specifications, architectural blueprints, and developer guides are maintained in the [`/docs`](./docs) directory:
+- **End-to-End Encryption** — ECDH P-256 + HKDF-SHA256 + AES-256-GCM with per-conversation session keys, AAD binding, and key fingerprints.
+- **Real-Time Messaging** — Instant 1-on-1 chat via Socket.io with typing indicators, read receipts, and auto-reconnection.
+- **Anonymous Identity** — Discord-style usernames and display names. Email, Clerk ID, and full name are never exposed to other users.
+- **Rich Media Sharing** — Send photos, videos, voice messages, documents (PDF, DOCX, TXT, CSV, XLSX), and any file up to 25MB via ImageKit CDN.
+- **Friend System** — Search users by username, send/accept/reject friend requests, friends-only conversation sidebar.
+- **Block & Report** — Block users to hide conversations and prevent messages. Report users with reason categories.
+- **11 Themes & 13 Wallpapers** — Full design system with CSS variables, dynamic theme switcher, and custom chat wallpapers.
+- **Keyboard Sound Effects** — Toggleable mechanical keyboard audio on typing and send.
+- **Mobile Optimized** — Responsive 3-column layout, safe-area insets, touch targets, overscroll prevention.
+- **Privacy by Design** — Sensitive fields (email, clerkId, fullName) stripped at API layer. ReDoS-safe search regex.
+- **Clerk Authentication** — Social logins (Google, GitHub, Email) with automatic MongoDB webhook sync.
+- **Keep-Alive Cron** — 14-minute automated ping for free-tier Render hosting.
+- **Docker Monolith** — Single multi-stage container serving both Vite SPA and Express API.
 
-| Document | Purpose & Contents |
+---
+
+## Tech Stack
+
+| Layer | Technologies |
 |---|---|
-| 📋 **[PRD.md](./docs/PRD.md)** | **Product Requirements Document:** Vision, personas, user stories, acceptance criteria, functional matrix, NFRs, and success KPIs. |
-| 🏗️ **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** | **Technical Design & Architecture:** System topology, Socket.io presence engine, MongoDB aggregations, and Docker containerization. |
-| 🔌 **[API_SPEC.md](./docs/API_SPEC.md)** | **API & WebSocket Specifications:** REST endpoint contracts, Clerk webhook schemas, payload examples, and Socket.io event catalog. |
-| 🔍 **[PROJECT_REVIEW.md](./docs/PROJECT_REVIEW.md)** | **Comprehensive Project Review:** In-depth codebase audit, target architecture analysis, drop-in bug fixes, and roadmap. |
-| 🤝 **[CONTRIBUTING.md](./docs/CONTRIBUTING.md)** | **Developer & Contribution Guide:** Local setup, environment templates, database seeding (`npm run db:seed`), and testing. |
+| **Frontend** | React 19, Vite 8, Tailwind CSS 4, Zustand 5, Socket.io Client, Axios, Lucide Icons, React Router 8 |
+| **Backend** | Node.js (ESM), Express 5, Socket.io, Mongoose 9, @clerk/express, Multer, @imagekit/nodejs, Cron |
+| **Database** | MongoDB Atlas |
+| **Auth** | Clerk (webhooks + session middleware) |
+| **Media CDN** | ImageKit.io |
+| **Encryption** | Web Crypto API (ECDH P-256, HKDF-SHA256, AES-256-GCM) |
+| **Deployment** | Docker (multi-stage), Render |
 
 ---
 
-## 🛠️ Technology Stack
+## Documentation
 
-- **Frontend:** React 19, Tailwind CSS, Hero UI, Zustand, Socket.io Client, Axios, Lucide Icons, Vite 8
-- **Backend:** Node.js (ESM), Express 5, Socket.io, Mongoose 9, `@clerk/express`, Multer, `@imagekit/nodejs`, Cron
-- **Database:** MongoDB Atlas
-- **Storage & CDN:** ImageKit.io
-- **Deployment:** Docker (Multi-stage build)
+| Document | Description |
+|---|---|
+| [PRD.md](./docs/PRD.md) | Product requirements, user stories, acceptance criteria, and success KPIs |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System topology, E2EE crypto layer, database ERD, Socket.io architecture |
+| [API_SPEC.md](./docs/API_SPEC.md) | REST endpoints, Socket.io event catalog, payload schemas |
+| [PROJECT_REVIEW.md](./docs/PROJECT_REVIEW.md) | Codebase audit, completed fixes, and engineering status |
+| [CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Local setup, environment config, Docker build, webhook testing |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1. Clone & Setup Environment
+### Clone & Install
 
 ```bash
-# Clone repository
 git clone https://github.com/ayushnandi718-dev/Chatter.git
 cd chatting
 
-# Configure Backend environment
-cp backend/.env.example backend/.env
+# Backend
+cd backend && npm install
 
-# Configure Frontend environment
+# Frontend
+cd ../frontend && npm install
+```
+
+### Environment Variables
+
+```bash
+cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 ```
 
-### 2. Install Dependencies
+See `.env.example` files for required keys (MongoDB Atlas, Clerk, ImageKit).
+
+### Run Locally
 
 ```bash
-# Install backend dependencies
-cd backend
-npm install
+# Terminal 1 — Backend (Express + Socket.io)
+cd backend && npm run dev
 
-# Install frontend dependencies
-cd ../frontend
-npm install
+# Terminal 2 — Frontend (Vite)
+cd frontend && npm run dev
 ```
 
-### 3. Run Locally
+### Docker
 
 ```bash
-# Terminal 1: Backend (Express + Socket.io)
-cd backend
-npm run dev
-
-# Terminal 2: Frontend (Vite)
-cd frontend
-npm run dev
-```
-
-### 4. Run with Docker (Production)
-
-```bash
-docker build --build-arg VITE_CLERK_PUBLISHABLE_KEY=your_key_here -t chatter .
+docker build --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_test_... -t chatter .
 docker run -p 3001:3001 --env-file backend/.env chatter
 ```
 
 ---
 
-## 📁 Repository Structure
+## Project Structure
 
 ```
 chatting/
-├── Dockerfile              # Multi-stage production container
-├── README.md               # Quickstart and documentation overview
-├── docs/                   # Complete project documentation suite
-│   ├── README.md           # Documentation hub
-│   ├── PRD.md              # Product Requirements Document
-│   ├── ARCHITECTURE.md     # Technical architecture & database ERD
-│   ├── API_SPEC.md         # REST API & WebSocket specifications
-│   ├── PROJECT_REVIEW.md   # Detailed codebase review & audit
-│   └── CONTRIBUTING.md     # Local developer setup & testing guide
-├── backend/                # Express API, Socket.io, MongoDB models, Clerk webhooks, ImageKit
-└── frontend/               # React 19 + Vite client application
+├── Dockerfile                    # Multi-stage production container
+├── README.md
+├── docs/                         # Project documentation
+│   ├── PRD.md
+│   ├── ARCHITECTURE.md
+│   ├── API_SPEC.md
+│   ├── PROJECT_REVIEW.md
+│   └── CONTRIBUTING.md
+├── backend/
+│   └── src/
+│       ├── index.js              # Express + Socket.io entry
+│       ├── controllers/          # Auth, message, user, friend, block, report
+│       ├── lib/                  # Socket, cron, db, imagekit, utils, crypto
+│       ├── middleware/            # Auth (Clerk), upload (Multer)
+│       ├── models/               # User, Message, Friendship, Block, Report
+│       ├── routes/               # REST route definitions
+│       ├── seeds/                # DB seed script
+│       └── webhooks/             # Clerk webhook handler
+└── frontend/
+    └── src/
+        ├── App.jsx
+        ├── index.css             # Design system (CSS variables)
+        ├── components/
+        │   ├── chat/             # ChatPage, Sidebar, ChatHeader, ChatComposer,
+        │   │                     # MessageList, FriendRequests, SearchUsers,
+        │   │                     # WallpaperModal, MediaModal, NoChatSelected
+        │   └── PageLoader.jsx, UsernameModal.jsx
+        ├── constants/            # Themes, wallpapers
+        ├── context/              # ThemeContext, WallpaperContext
+        ├── lib/                  # Axios, crypto.js, crypto-states.js
+        ├── pages/                # AuthPage, ChatPage
+        └── store/                # useAuthStore, useChatStore, useCryptoStore,
+                                  # useFriendStore, useSoundStore
 ```
 
 ---
 
-## 📄 License
+## License
 
-ISC License
+ISC

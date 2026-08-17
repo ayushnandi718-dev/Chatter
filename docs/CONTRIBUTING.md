@@ -1,47 +1,41 @@
 # Development & Contributing Guide — Chatter
 
-> This guide outlines how to configure, develop, test, and contribute to **Chatter**.
+> How to set up, develop, and deploy Chatter locally.
 
 ---
 
-## 1. Prerequisites & Tooling
+## 1. Prerequisites
 
-Ensure you have the following installed locally:
-
-- **Node.js:** v20.x or v22.x LTS
-- **npm:** v10.x or higher
-- **Git:** v2.30+
-- **Docker Desktop:** (Optional, for containerized testing)
-- **MongoDB Atlas Cluster / Local MongoDB instance**
-- **Clerk Identity Account:** [clerk.com](https://clerk.com)
-- **ImageKit Account:** [imagekit.io](https://imagekit.io)
+- **Node.js** v22.x LTS
+- **npm** v10+
+- **Git** v2.30+
+- **Docker Desktop** (optional)
+- **MongoDB Atlas** account
+- **Clerk** account ([clerk.com](https://clerk.com))
+- **ImageKit** account ([imagekit.io](https://imagekit.io))
 
 ---
 
-## 2. Environment Configuration
+## 2. Environment Variables
 
-### 2.1 Backend Environment (`backend/.env`)
+### Backend (`backend/.env`)
 
 ```env
-PORT=3001
+PORT=3000
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
 
-# MongoDB Atlas
-MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/chatter_db?retryWrites=true&w=majority
+MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/Chatter_db?retryWrites=true&w=majority
 
-# Clerk Authentication & Webhooks
 CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
 
-# ImageKit Media Storage
 IMAGEKIT_PUBLIC_KEY=public_...
 IMAGEKIT_PRIVATE_KEY=private_...
-IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/...
 ```
 
-### 2.2 Frontend Environment (`frontend/.env`)
+### Frontend (`frontend/.env`)
 
 ```env
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
@@ -50,84 +44,110 @@ VITE_API_URL=http://localhost:3001
 
 ---
 
-## 3. Local Development Workflow
+## 3. Local Development
 
-### Step 1: Install Dependencies
+### Install Dependencies
 ```bash
-# Install backend dependencies
-cd backend
-npm install
+# Backend
+cd backend && npm install
 
-# Install frontend dependencies
-cd ../frontend
-npm install
+# Frontend
+cd ../frontend && npm install
 ```
 
-### Step 2: Database Seeding (Optional)
-To populate sample users for local testing:
+### Seed Database (Optional)
 ```bash
-cd backend
-npm run db:seed
+cd backend && npm run db:seed
 ```
 
-### Step 3: Start Development Servers
-Open two terminal windows:
+### Start Dev Servers
 
-**Terminal 1 (Backend API + Socket Server):**
+**Terminal 1 — Backend:**
 ```bash
-cd backend
-npm run dev
-# Starts server on http://localhost:3001 with nodemon
+cd backend && npm run dev
+# Express + Socket.io on http://localhost:3000
 ```
 
-**Terminal 2 (Frontend Client):**
+**Terminal 2 — Frontend:**
 ```bash
-cd frontend
-npm run dev
-# Starts Vite client on http://localhost:5173
+cd frontend && npm run dev
+# Vite on http://localhost:5173
 ```
 
 ---
 
-## 4. Local Clerk Webhook Testing with Ngrok / Svix
+## 4. Clerk Webhook Setup (Local)
 
-Because Clerk needs a public HTTPS URL to deliver webhook events:
+Clerk needs a public HTTPS URL for webhooks:
 
-1. Launch Ngrok on the backend port:
-   ```bash
-   ngrok http 3001
-   ```
-2. Navigate to [Clerk Dashboard > Webhooks](https://dashboard.clerk.com/)
-3. Add Endpoint: `https://<ngrok-id>.ngrok-free.app/api/webhooks/clerk`
-4. Subscribe to `user.created`, `user.updated`, and `user.deleted`
-5. Copy the **Signing Secret** into `backend/.env` as `CLERK_WEBHOOK_SIGNING_SECRET`.
+1. Start ngrok: `ngrok http 3000`
+2. Go to [Clerk Dashboard > Webhooks](https://dashboard.clerk.com/)
+3. Add endpoint: `https://<ngrok-id>.ngrok-free.app/api/webhooks/clerk`
+4. Subscribe to: `user.created`, `user.updated`, `user.deleted`
+5. Copy signing secret to `backend/.env` as `CLERK_WEBHOOK_SIGNING_SECRET`
 
 ---
 
-## 5. UI Customization & Sensory Assets
+## 5. UI Customization
 
-### 5.1 Themes & Wallpapers
-Chatter supports **11 curated themes** and **13 custom wallpapers**:
-- Theme definitions are located in `frontend/src/constants/themes.js`.
-- Wallpaper backgrounds are stored in `frontend/public/wallpapers/`.
+### Themes
+11 themes defined in `frontend/src/constants/themes.js`. Switch via `ThemeContext`.
 
-### 5.2 Mechanical Keyboard Sounds
-- Sound clips (`keystroke.mp3`, `send.mp3`) are placed in `frontend/public/sounds/`.
-- Managed via `useSoundStore.js` with local storage persistence.
+### Wallpapers
+13 wallpapers in `frontend/public/wallpapers/`. Managed by `WallpaperContext`.
+
+### Keyboard Sounds
+Sound clips in `frontend/public/sounds/`. Toggle via `useSoundStore`.
 
 ---
 
-## 6. Docker Build & Container Verification
-
-To build and run the complete monolith container locally:
+## 6. Docker
 
 ```bash
-# Build Docker image from repo root
-docker build \
-  --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_test_... \
-  -t chatter:latest .
+# Build
+docker build --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_test_... -t chatter .
 
-# Run container
-docker run -p 3001:3001 --env-file backend/.env chatter:latest
+# Run
+docker run -p 3001:3001 --env-file backend/.env chatter
 ```
-Visit `http://localhost:3001` to test the full production build.
+
+Visit `http://localhost:3001`.
+
+---
+
+## 7. Project Structure
+
+```
+chatting/
+├── backend/src/
+│   ├── index.js              # Express + Socket.io entry
+│   ├── controllers/           # Auth, message, user, friend, block
+│   ├── lib/                   # Socket, cron, db, imagekit, crypto
+│   ├── middleware/             # Auth, upload (Multer)
+│   ├── models/                # User, Message, Friendship, Block, Report
+│   ├── routes/                # REST routes
+│   ├── seeds/                 # DB seed
+│   └── webhooks/              # Clerk webhook
+└── frontend/src/
+    ├── components/chat/       # ChatComposer, ChatHeader, MessageList, etc.
+    ├── constants/             # Themes, wallpapers
+    ├── context/               # ThemeContext, WallpaperContext
+    ├── lib/                   # Axios, crypto.js, crypto-states.js
+    ├── pages/                 # AuthPage, ChatPage
+    └── store/                 # Zustand stores (5)
+```
+
+---
+
+## 8. Scripts
+
+| Command | Location | Description |
+|---|---|---|
+| `npm run dev` | Backend | Start Express with nodemon |
+| `npm run start` | Backend | Production start |
+| `npm run build` | Backend | Copy src/ to dist/ |
+| `npm run db:seed` | Backend | Seed sample users |
+| `npm run dev` | Frontend | Start Vite dev server |
+| `npm run build` | Frontend | Production build |
+| `npm run lint` | Frontend | ESLint check |
+| `npm run preview` | Frontend | Preview production build |

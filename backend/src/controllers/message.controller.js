@@ -81,6 +81,10 @@ export async function getConversationsForSidebar(req, res) {
                     clientMessageId: msg.clientMessageId,
                     image: msg.image,
                     video: msg.video,
+                    file: msg.file,
+                    audio: msg.audio,
+                    fileName: msg.fileName,
+                    fileType: msg.fileType,
                     readAt: msg.readAt,
                     createdAt: msg.createdAt,
                 },
@@ -142,22 +146,36 @@ export async function sendMessage(req, res) {
 
         let imageUrl = null;
         let videoUrl = null;
+        let fileUrl = null;
+        let audioUrl = null;
+        let fileName = "";
+        let fileType = "";
+        let fileSize = 0;
 
         if (req.file) {
             const uploadedUrl = await uploadChatMedia(req.file);
-            if (req.file.mimetype.startsWith("image/")) {
+            const mime = req.file.mimetype;
+            fileName = req.file.originalname;
+            fileType = mime;
+            fileSize = req.file.size;
+
+            if (mime.startsWith("image/")) {
                 imageUrl = uploadedUrl;
-            } else if (req.file.mimetype.startsWith("video/")) {
+            } else if (mime.startsWith("video/")) {
                 videoUrl = uploadedUrl;
+            } else if (mime.startsWith("audio/")) {
+                audioUrl = uploadedUrl;
+            } else {
+                fileUrl = uploadedUrl;
             }
         }
 
         const hasEncrypted = encryptedText && iv;
         const hasLegacy = text;
-        const hasMedia = imageUrl || videoUrl;
+        const hasMedia = imageUrl || videoUrl || audioUrl || fileUrl;
 
         if (!hasEncrypted && !hasLegacy && !hasMedia) {
-            return res.status(400).json({ message: "Message must contain text or a media file" });
+            return res.status(400).json({ message: "Message must contain text or a file" });
         }
 
         const messageData = {
@@ -165,6 +183,11 @@ export async function sendMessage(req, res) {
             receiverId,
             image: imageUrl,
             video: videoUrl,
+            file: fileUrl,
+            audio: audioUrl,
+            fileName,
+            fileType,
+            fileSize,
         };
 
         if (hasEncrypted) {
