@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useCallback } from "react";
 import { useWallpaperStore } from "../../store/useWallpaperStore";
 import { useChatStore } from "../../store/useChatStore";
 import { WALLPAPERS, CATEGORIES, DEFAULT_WALLPAPER, getWallpapersByCategory } from "../../lib/wallpapers";
-import { X, Check, Upload, Trash2, RotateCcw, ImageIcon } from "lucide-react";
+import { X, Check, Upload, Trash2, RotateCcw, MessageCircle, Globe } from "lucide-react";
 import toast from "react-hot-toast";
 
 const MAX_CUSTOM_SIZE = 10 * 1024 * 1024;
@@ -109,6 +109,7 @@ export function WallpaperPicker({ isOpen, onClose }) {
     const [previewId, setPreviewId] = useState(activeId);
     const [previewBrightness, setPreviewBrightness] = useState(brightness);
     const [isCustomMode, setIsCustomMode] = useState(false);
+    const [applyScope, setApplyScope] = useState(conversationId ? "conversation" : "global");
 
     const previewWallpaper = useMemo(() => {
         if (isCustomMode) return DEFAULT_WALLPAPER;
@@ -125,18 +126,19 @@ export function WallpaperPicker({ isOpen, onClose }) {
     }, []);
 
     const handleApply = useCallback(() => {
-        if (conversationId) {
+        if (applyScope === "conversation" && conversationId) {
             setConversationWallpaper(conversationId, previewId);
+            toast.success(`Wallpaper set for this chat`);
         } else {
             setGlobalWallpaper(previewId);
+            toast.success("Wallpaper set for all chats");
         }
         setBrightness(previewBrightness);
-        toast.success("Wallpaper applied");
         onClose();
-    }, [conversationId, previewId, previewBrightness, setConversationWallpaper, setGlobalWallpaper, setBrightness, onClose]);
+    }, [applyScope, conversationId, previewId, previewBrightness, setConversationWallpaper, setGlobalWallpaper, setBrightness, onClose]);
 
     const handleReset = useCallback(() => {
-        if (conversationId && hasConversationOverride(conversationId)) {
+        if (applyScope === "conversation" && conversationId && hasConversationOverride(conversationId)) {
             resetConversationWallpaper(conversationId);
             setPreviewId(globalId);
             toast.success("Reset to default");
@@ -144,7 +146,7 @@ export function WallpaperPicker({ isOpen, onClose }) {
             setPreviewId("chatter-default");
             setPreviewBrightness(40);
         }
-    }, [conversationId, globalId, hasConversationOverride, resetConversationWallpaper]);
+    }, [applyScope, conversationId, globalId, hasConversationOverride, resetConversationWallpaper]);
 
     const handleUpload = useCallback((e) => {
         const file = e.target.files?.[0];
@@ -172,6 +174,7 @@ export function WallpaperPicker({ isOpen, onClose }) {
     if (!isOpen) return null;
 
     const overlayOpacity = previewBrightness / 100;
+    const hasConversation = Boolean(conversationId);
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
@@ -186,7 +189,7 @@ export function WallpaperPicker({ isOpen, onClose }) {
                             Chat Wallpaper
                         </h3>
                         <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                            {conversationId ? "Wallpaper for this chat" : "Default for all chats"}
+                            Choose a wallpaper for your chats
                         </p>
                     </div>
                     <button onClick={onClose}
@@ -197,6 +200,33 @@ export function WallpaperPicker({ isOpen, onClose }) {
                         <X className="h-4 w-4" />
                     </button>
                 </div>
+
+                {/* Scope toggle — only show when a conversation is open */}
+                {hasConversation && (
+                    <div className="px-5 pb-3 shrink-0">
+                        <div className="flex rounded-lg p-0.5"
+                             style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                            <button onClick={() => setApplyScope("conversation")}
+                                    className="flex-1 flex items-center justify-center gap-1.5 rounded-md py-2 text-[11px] font-medium transition-all"
+                                    style={{
+                                        background: applyScope === "conversation" ? 'var(--accent)' : 'transparent',
+                                        color: applyScope === "conversation" ? 'white' : 'var(--text-muted)',
+                                    }}>
+                                <MessageCircle className="h-3 w-3" />
+                                This chat
+                            </button>
+                            <button onClick={() => setApplyScope("global")}
+                                    className="flex-1 flex items-center justify-center gap-1.5 rounded-md py-2 text-[11px] font-medium transition-all"
+                                    style={{
+                                        background: applyScope === "global" ? 'var(--accent)' : 'transparent',
+                                        color: applyScope === "global" ? 'white' : 'var(--text-muted)',
+                                    }}>
+                                <Globe className="h-3 w-3" />
+                                All chats
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
@@ -337,7 +367,7 @@ export function WallpaperPicker({ isOpen, onClose }) {
                                 style={{ background: 'var(--accent)' }}
                                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent)'}>
-                            Apply
+                            {applyScope === "conversation" ? "Set for this chat" : "Set for all chats"}
                         </button>
                     </div>
                 </div>
