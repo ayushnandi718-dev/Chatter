@@ -251,3 +251,73 @@ export function generateMessageId() {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
 }
+
+export async function cryptoSelfTest() {
+    const alice = await crypto.subtle.generateKey(
+        { name: "ECDH", namedCurve: "P-256" },
+        false,
+        ["deriveKey", "deriveBits"]
+    );
+    const bob = await crypto.subtle.generateKey(
+        { name: "ECDH", namedCurve: "P-256" },
+        false,
+        ["deriveKey", "deriveBits"]
+    );
+
+    const alicePubJwk = await crypto.subtle.exportKey("jwk", alice.publicKey);
+    const bobPubJwk = await crypto.subtle.exportKey("jwk", bob.publicKey);
+
+    const aliceSharedBits = await crypto.subtle.deriveBits(
+        { name: "ECDH", public: bob.publicKey },
+        alice.privateKey,
+        256
+    );
+    const bobSharedBits = await crypto.subtle.deriveBits(
+        { name: "ECDH", public: alice.publicKey },
+        bob.privateKey,
+        256
+    );
+
+    const aliceHash = new Uint8Array(await crypto.subtle.digest("SHA-256", aliceSharedBits));
+    const bobHash = new Uint8Array(await crypto.subtle.digest("SHA-256", bobSharedBits));
+
+    const secretsMatch = aliceHash.every((v, i) => v === bobHash[i]);
+    if (!secretsMatch) throw new Error("SELF-TEST FAILED: ECDH shared secrets differ");
+
+    const testConvId = "self-test-" + Date.now();
+    const aliceKey = await hkdfDeriveAesKey(aliceSharedBits, testConvId);
+    const bobKey = await hkdfDeriveAesKey(bobSharedBits, testConvId);
+
+    const aad = new TextEncoder().encode(JSON.stringify({ test: true }));
+    const iv = generateRandomIV();
+    const testPlaintext = "hello chatter e2ee";
+
+    const ciphertextBuf = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv, additionalData: aad, tagLength: 128 },
+        aliceKey,
+        new TextEncoder().encode(testPlaintext)
+    );
+
+    const decryptedBuf = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv, additionalData: aad, tagLength: 128 },
+        bobKey,
+        ciphertextBuf
+    );
+
+    const decrypted = new TextDecoder().decode(decryptedBuf);
+    if (decrypted !== testPlaintext) throw new Error("SELF-TEST FAILED: Decrypted text mismatch");
+
+    const badAad = new TextEncoder().encode(JSON.stringify({ test: false }));
+    try {
+        await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv, additionalData: badAad, tagLength: 128 },
+            bobKey,
+            ciphertextBuf
+        );
+        throw new Error("SELF-TEST FAILED: Should have rejected bad AAD");
+    } catch (e) {
+        if (e.message.includes("SELF-TEST FAILED")) throw e;
+    }
+
+    return true;
+}
