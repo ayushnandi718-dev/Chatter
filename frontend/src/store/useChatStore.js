@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
 import { useSoundStore } from "./useSoundStore";
+import { useCryptoStore } from "./useCryptoStore";
 import toast from "react-hot-toast";
 
 export const useChatStore = create((set, get) => ({
@@ -32,7 +33,6 @@ export const useChatStore = create((set, get) => ({
 
             set({ conversations });
 
-            const { useCryptoStore } = await import("./useCryptoStore");
             const cryptoStore = useCryptoStore.getState();
 
             for (const conv of conversations) {
@@ -67,7 +67,6 @@ export const useChatStore = create((set, get) => ({
             const res = await axiosInstance.get(`/messages/${userId}`);
             const rawMessages = res.data;
 
-            const { useCryptoStore } = await import("./useCryptoStore");
             const cryptoStore = useCryptoStore.getState();
 
             const decryptedMessages = await cryptoStore.decryptMessages(rawMessages);
@@ -98,7 +97,6 @@ export const useChatStore = create((set, get) => ({
             if (isFormData) {
                 payload = messageData;
             } else {
-                const { useCryptoStore } = await import("./useCryptoStore");
                 const cryptoStore = useCryptoStore.getState();
                 const authUser = useAuthStore.getState().authUser;
 
@@ -142,7 +140,6 @@ export const useChatStore = create((set, get) => ({
             const newMsg = res.data;
 
             if (newMsg.encryptedText && newMsg.iv) {
-                const { useCryptoStore } = await import("./useCryptoStore");
                 const decrypted = await useCryptoStore.getState().decryptIncoming(newMsg);
                 newMsg.text = decrypted ?? "🔒 Could not decrypt";
             }

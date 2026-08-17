@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useChatStore } from "../../store/useChatStore";
 import { useSoundStore } from "../../store/useSoundStore";
-import { Send, Image, X, Loader2, Video } from "lucide-react";
+import { Send, Image, X, Loader2, Video, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -42,9 +42,7 @@ export function ChatComposer() {
 
         setSelectedFile(file);
         setIsVideo(isVid);
-
-        const previewUrl = URL.createObjectURL(file);
-        setFilePreview(previewUrl);
+        setFilePreview(URL.createObjectURL(file));
     };
 
     const handleRemoveFile = () => {
@@ -70,17 +68,14 @@ export function ChatComposer() {
 
             setText("");
             handleRemoveFile();
-            if (selectedUser?._id) {
-                sendStopTyping(selectedUser._id);
-            }
+            if (selectedUser?._id) sendStopTyping(selectedUser._id);
         } catch (error) {
-            console.error("Failed to send message:", error);
+            // error handled by store
         }
     };
 
     const handleKeyDown = (e) => {
         playKeystrokeSound();
-
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             handleSend();
@@ -89,86 +84,86 @@ export function ChatComposer() {
 
     const handleTextChange = (e) => {
         setText(e.target.value);
-
         if (selectedUser?._id) {
             sendTyping(selectedUser._id);
-
-            if (typingTimeoutRef.current) {
-                clearTimeout(typingTimeoutRef.current);
-            }
-            typingTimeoutRef.current = setTimeout(() => {
-                sendStopTyping(selectedUser._id);
-            }, 2000);
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = setTimeout(() => sendStopTyping(selectedUser._id), 2000);
         }
     };
 
     return (
-        <div className="p-3 border-t border-white/10 bg-slate-900/70 backdrop-blur-xl z-20">
+        <div className="px-3 pb-3 pt-1" style={{ background: 'var(--bg-chat)' }}>
             {filePreview && (
-                <div className="mb-2 flex items-center gap-3 rounded-xl bg-slate-800/80 p-2 border border-white/10 backdrop-blur-md">
-                    <div className="relative h-14 w-14 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                <div className="mb-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2"
+                     style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md flex items-center justify-center"
+                         style={{ background: 'var(--bg-elevated)' }}>
                         {isVideo ? (
-                            <div className="flex h-full w-full items-center justify-center text-slate-300">
-                                <Video className="h-6 w-6" />
-                            </div>
+                            <Video className="h-4 w-4" style={{ color: 'var(--text-muted)' }} />
                         ) : (
-                            <img src={filePreview} alt="Preview" className="h-full w-full object-cover" />
+                            <img src={filePreview} alt="" className="h-full w-full object-cover" />
                         )}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-white truncate">{selectedFile?.name}</p>
-                        <p className="text-[10px] text-slate-400">
-                            {(selectedFile?.size / (1024 * 1024)).toFixed(2)} MB
+                        <p className="text-[11px] font-medium truncate"
+                           style={{ color: 'var(--text-primary)' }}>
+                            {selectedFile?.name}
+                        </p>
+                        <p className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                            {(selectedFile?.size / (1024 * 1024)).toFixed(1)} MB
                         </p>
                     </div>
-                    <button
-                        onClick={handleRemoveFile}
-                        className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white transition-colors"
-                    >
-                        <X className="h-4 w-4" />
+                    <button onClick={handleRemoveFile}
+                            className="h-5 w-5 flex items-center justify-center rounded-full transition-colors"
+                            style={{ color: 'var(--text-muted)' }}>
+                        <X className="h-3 w-3" />
                     </button>
                 </div>
             )}
 
-            <form onSubmit={handleSend} className="flex items-end gap-2">
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/*,video/*"
-                    className="hidden"
-                />
+            <form onSubmit={handleSend} className="flex items-end gap-1.5">
+                <input type="file"
+                       ref={fileInputRef}
+                       onChange={handleFileChange}
+                       accept="image/*,video/*"
+                       className="hidden" />
 
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition-all"
-                    title="Attach Image or Video (Max 25MB)"
-                >
-                    <Image className="h-5 w-5" />
+                <button type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        title="Attach">
+                    <Plus className="h-4 w-4" />
                 </button>
 
                 <div className="relative flex-1">
-                    <textarea
-                        ref={textareaRef}
-                        value={text}
-                        onChange={handleTextChange}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Type a message..."
-                        rows={1}
-                        className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-400 focus:border-blue-500/50 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all max-h-32"
-                    />
+                    <textarea ref={textareaRef}
+                              value={text}
+                              onChange={handleTextChange}
+                              onKeyDown={handleKeyDown}
+                              placeholder="Type a message..."
+                              rows={1}
+                              className="w-full resize-none rounded-lg px-3 py-2 text-xs outline-none transition-colors"
+                              style={{
+                                  background: 'var(--bg-surface)',
+                                  color: 'var(--text-primary)',
+                                  border: '1px solid var(--border)',
+                              }}
+                              onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
+                              onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
+                              maxLength={4000} />
                 </div>
 
-                <button
-                    type="submit"
-                    disabled={(!text.trim() && !selectedFile) || isSendingMedia}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
+                <button type="submit"
+                        disabled={(!text.trim() && !selectedFile) || isSendingMedia}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white transition-colors disabled:opacity-30"
+                        style={{ background: 'var(--accent)' }}>
                     {isSendingMedia ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                        <Send className="h-5 w-5" />
+                        <Send className="h-3.5 w-3.5" />
                     )}
                 </button>
             </form>

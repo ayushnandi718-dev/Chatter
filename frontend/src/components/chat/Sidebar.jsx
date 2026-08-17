@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useChatStore } from "../../store/useChatStore";
 import { useFriendStore } from "../../store/useFriendStore";
 import { useAuthStore } from "../../store/useAuthStore";
+import { useCryptoStore } from "../../store/useCryptoStore";
 import { UserButton } from "@clerk/react";
-import { Search, MessageSquare, Users, Loader2, UserPlus, Bell, UserMinus } from "lucide-react";
+import { Search, MessageSquare, Users, UserPlus, Bell, Shield } from "lucide-react";
 
 export function Sidebar({ onOpenSearch, onOpenRequests }) {
     const conversations = useChatStore((state) => state.conversations);
@@ -12,6 +13,7 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
     const isConversationsLoading = useChatStore((state) => state.isConversationsLoading);
     const searchQuery = useChatStore((state) => state.searchQuery);
     const setSearchQuery = useChatStore((state) => state.setSearchQuery);
+    const decryptedPreviews = useChatStore((state) => state.decryptedPreviews);
 
     const friends = useFriendStore((state) => state.friends);
     const incomingRequests = useFriendStore((state) => state.incomingRequests);
@@ -34,90 +36,103 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
     );
 
     return (
-        <aside className="flex h-full w-full md:w-80 lg:w-96 flex-col border-r border-white/10 bg-slate-950/70 backdrop-blur-2xl">
-            <div className="p-4 border-b border-white/10 space-y-3">
-                <div className="flex items-center justify-between">
+        <aside className="flex h-full w-full flex-col"
+               style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
+
+            <div className="p-3 space-y-3">
+                <div className="flex items-center justify-between px-1">
                     <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-md shadow-blue-500/20 text-white font-bold text-sm">
-                            💬
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg"
+                             style={{ background: 'var(--accent)' }}>
+                            <span className="text-white text-xs font-bold">C</span>
                         </div>
-                        <h1 className="text-lg font-bold tracking-tight text-white">Chatter</h1>
+                        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Chatter</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                         <button
                             onClick={onOpenRequests}
-                            className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                            className="relative flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+                            style={{ color: 'var(--text-secondary)' }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             title="Friend Requests"
                         >
-                            <Bell className="h-4 w-4" />
+                            <Bell className="h-3.5 w-3.5" />
                             {incomingRequests.length > 0 && (
-                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                                <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[8px] font-bold text-white"
+                                      style={{ background: 'var(--danger)' }}>
                                     {incomingRequests.length}
                                 </span>
                             )}
                         </button>
                         <button
                             onClick={onOpenSearch}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-all"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-white transition-colors"
+                            style={{ background: 'var(--accent)' }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent)'}
                             title="Add Friend"
                         >
-                            <UserPlus className="h-4 w-4" />
+                            <UserPlus className="h-3.5 w-3.5" />
                         </button>
                     </div>
                 </div>
 
                 <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5"
+                            style={{ color: 'var(--text-muted)' }} />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search..."
-                        className="w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:border-blue-500/50 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        className="w-full rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none transition-colors"
+                        style={{
+                            background: 'var(--bg-hover)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border)',
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
+                        onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
                     />
                 </div>
 
-                <div className="flex rounded-xl bg-white/5 p-1 border border-white/10">
-                    <button
-                        onClick={() => setSidebarTab("chats")}
-                        className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
-                            sidebarTab === "chats"
-                                ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                                : "text-slate-400 hover:text-white"
-                        }`}
-                    >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        <span>Chats ({conversations.length})</span>
-                    </button>
-                    <button
-                        onClick={() => setSidebarTab("friends")}
-                        className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
-                            sidebarTab === "friends"
-                                ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                                : "text-slate-400 hover:text-white"
-                        }`}
-                    >
-                        <Users className="h-3.5 w-3.5" />
-                        <span>Friends ({friends.length})</span>
-                    </button>
+                <div className="flex gap-1 p-0.5 rounded-lg"
+                     style={{ background: 'var(--bg-hover)' }}>
+                    {[
+                        { id: "chats", icon: MessageSquare, label: "Chats", count: conversations.length },
+                        { id: "friends", icon: Users, label: "Friends", count: friends.length },
+                    ].map(({ id, icon: Icon, label, count }) => (
+                        <button
+                            key={id}
+                            onClick={() => setSidebarTab(id)}
+                            className="flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium transition-all"
+                            style={{
+                                background: sidebarTab === id ? 'var(--accent)' : 'transparent',
+                                color: sidebarTab === id ? 'white' : 'var(--text-secondary)',
+                            }}
+                        >
+                            <Icon className="h-3 w-3" />
+                            {label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            <div className="flex-1 overflow-y-auto px-1.5 pb-1.5 space-y-0.5">
                 {sidebarTab === "chats" ? (
                     isConversationsLoading ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-2">
-                            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                            <span className="text-xs">Loading conversations...</span>
+                        <div className="flex items-center justify-center py-12"
+                             style={{ color: 'var(--text-muted)' }}>
+                            <span className="text-[11px]">Loading...</span>
                         </div>
                     ) : filteredConversations.length === 0 ? (
-                        <div className="py-10 px-4 text-center">
-                            <p className="text-xs text-slate-400">No conversations yet.</p>
-                            <button
-                                onClick={onOpenSearch}
-                                className="mt-2 text-xs font-semibold text-blue-400 hover:underline"
-                            >
-                                Find friends to start chatting
+                        <div className="py-10 px-3 text-center">
+                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>No conversations yet.</p>
+                            <button onClick={onOpenSearch}
+                                    className="mt-1.5 text-[11px] font-medium hover:underline"
+                                    style={{ color: 'var(--accent)' }}>
+                                Find friends
                             </button>
                         </div>
                     ) : (
@@ -125,40 +140,42 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
                             const partner = conv.partner;
                             const isOnline = onlineUsers.includes(partner?._id);
                             const isSelected = selectedUser?._id === partner?._id;
+                            const preview = decryptedPreviews[conv._id]
+                                || conv.lastMessage?.text
+                                || (conv.lastMessage?.image && "Photo")
+                                || (conv.lastMessage?.video && "Video")
+                                || "";
 
                             return (
                                 <button
                                     key={conv._id}
                                     onClick={() => setSelectedUser(partner)}
-                                    className={`flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition-all ${
-                                        isSelected
-                                            ? "bg-blue-600/25 border border-blue-500/30 text-white"
-                                            : "hover:bg-white/5 text-slate-300"
-                                    }`}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors"
+                                    style={{
+                                        background: isSelected ? 'var(--bg-active)' : 'transparent',
+                                        borderLeft: isSelected ? '2px solid var(--accent)' : '2px solid transparent',
+                                    }}
+                                    onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                    onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
                                 >
                                     <div className="relative shrink-0">
-                                        <img
-                                            src={partner?.profilePic || "/favicon.svg"}
-                                            alt={partner?.displayName || partner?.username}
-                                            className="h-11 w-11 rounded-full object-cover ring-2 ring-white/10"
-                                        />
-                                        <span
-                                            className={`absolute bottom-0 right-0 h-3 w-3 rounded-full ring-2 ring-slate-950 ${
-                                                isOnline ? "bg-emerald-500" : "bg-slate-500"
-                                            }`}
-                                        />
+                                        <img src={partner?.profilePic || "/favicon.svg"}
+                                             alt=""
+                                             className="h-9 w-9 rounded-full object-cover" />
+                                        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2"
+                                              style={{
+                                                  background: isOnline ? 'var(--success)' : '#52525b',
+                                                  ringColor: 'var(--bg-sidebar)',
+                                              }} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="text-xs font-semibold text-white truncate">
-                                                {partner?.displayName || partner?.username}
-                                            </h4>
-                                        </div>
-                                        <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                                            {conv.lastMessage?.text ||
-                                                (conv.lastMessage?.image && "📷 Photo") ||
-                                                (conv.lastMessage?.video && "🎥 Video") ||
-                                                "Start chatting"}
+                                        <h4 className="text-xs font-medium truncate"
+                                            style={{ color: 'var(--text-primary)' }}>
+                                            {partner?.displayName || partner?.username}
+                                        </h4>
+                                        <p className="text-[10px] truncate mt-0.5"
+                                           style={{ color: preview ? 'var(--text-muted)' : 'var(--text-muted)' }}>
+                                            {preview || "Start chatting"}
                                         </p>
                                     </div>
                                 </button>
@@ -166,18 +183,17 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
                         })
                     )
                 ) : isFriendsLoading ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                        <span className="text-xs">Loading friends...</span>
+                    <div className="flex items-center justify-center py-12"
+                         style={{ color: 'var(--text-muted)' }}>
+                        <span className="text-[11px]">Loading...</span>
                     </div>
                 ) : filteredFriends.length === 0 ? (
-                    <div className="py-10 px-4 text-center">
-                        <p className="text-xs text-slate-400">No friends yet.</p>
-                        <button
-                            onClick={onOpenSearch}
-                            className="mt-2 text-xs font-semibold text-blue-400 hover:underline"
-                        >
-                            Find people to add
+                    <div className="py-10 px-3 text-center">
+                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>No friends yet.</p>
+                        <button onClick={onOpenSearch}
+                                className="mt-1.5 text-[11px] font-medium hover:underline"
+                                style={{ color: 'var(--accent)' }}>
+                            Find people
                         </button>
                     </div>
                 ) : (
@@ -189,29 +205,31 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
                             <button
                                 key={friend._id}
                                 onClick={() => setSelectedUser(friend)}
-                                className={`flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition-all ${
-                                    isSelected
-                                        ? "bg-blue-600/25 border border-blue-500/30 text-white"
-                                        : "hover:bg-white/5 text-slate-300"
-                                }`}
+                                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors"
+                                style={{
+                                    background: isSelected ? 'var(--bg-active)' : 'transparent',
+                                    borderLeft: isSelected ? '2px solid var(--accent)' : '2px solid transparent',
+                                }}
+                                onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
                             >
                                 <div className="relative shrink-0">
-                                    <img
-                                        src={friend.profilePic || "/favicon.svg"}
-                                        alt={friend.displayName || friend.username}
-                                        className="h-11 w-11 rounded-full object-cover ring-2 ring-white/10"
-                                    />
-                                    <span
-                                        className={`absolute bottom-0 right-0 h-3 w-3 rounded-full ring-2 ring-slate-950 ${
-                                            isOnline ? "bg-emerald-500" : "bg-slate-500"
-                                        }`}
-                                    />
+                                    <img src={friend.profilePic || "/favicon.svg"}
+                                         alt=""
+                                         className="h-9 w-9 rounded-full object-cover" />
+                                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2"
+                                          style={{
+                                              background: isOnline ? 'var(--success)' : '#52525b',
+                                              ringColor: 'var(--bg-sidebar)',
+                                          }} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <h4 className="text-xs font-semibold text-white truncate">
+                                    <h4 className="text-xs font-medium truncate"
+                                        style={{ color: 'var(--text-primary)' }}>
                                         {friend.displayName || friend.username}
                                     </h4>
-                                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                                    <p className="text-[10px] truncate mt-0.5"
+                                       style={{ color: 'var(--text-muted)' }}>
                                         @{friend.username}
                                     </p>
                                 </div>
@@ -221,18 +239,20 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
                 )}
             </div>
 
-            <div className="p-3 border-t border-white/10 bg-slate-900/60 backdrop-blur-xl flex items-center justify-between">
-                <div className="flex items-center gap-2.5 min-w-0">
-                    <UserButton />
-                    <div className="min-w-0">
-                        <p className="text-xs font-semibold text-white truncate">
-                            {authUser?.displayName || authUser?.fullName?.split(" ")[0] || "My Account"}
-                        </p>
-                        <p className="text-[10px] text-slate-400 truncate">
-                            @{authUser?.username || "username"}
-                        </p>
-                    </div>
+            <div className="p-2 flex items-center gap-2"
+                 style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-sidebar)' }}>
+                <UserButton />
+                <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-medium truncate"
+                       style={{ color: 'var(--text-primary)' }}>
+                        {authUser?.displayName || authUser?.username || "Account"}
+                    </p>
+                    <p className="text-[9px] truncate"
+                       style={{ color: 'var(--text-muted)' }}>
+                        @{authUser?.username || "username"}
+                    </p>
                 </div>
+                <Shield className="h-3 w-3 shrink-0" style={{ color: 'var(--text-muted)' }} title="End-to-end encrypted" />
             </div>
         </aside>
     );

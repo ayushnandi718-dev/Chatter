@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useAuth } from "@clerk/react";
 import { useAuthStore } from "./store/useAuthStore";
-import { useFriendStore } from "./store/useFriendStore";
 import { ThemeProvider } from "./context/ThemeContext";
 import { WallpaperProvider } from "./context/WallpaperContext";
 import AuthPage from "./pages/AuthPage";
@@ -15,7 +14,6 @@ function AppContent() {
     const checkAuth = useAuthStore((state) => state.checkAuth);
     const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
     const disconnectSocket = useAuthStore((state) => state.disconnectSocket);
-    const authUser = useAuthStore((state) => state.authUser);
 
     useEffect(() => {
         if (isSignedIn) {
@@ -35,11 +33,12 @@ function AppContent() {
                 position="top-right"
                 toastOptions={{
                     style: {
-                        background: "#0f172a",
-                        color: "#f8fafc",
-                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                        borderRadius: "14px",
-                        fontSize: "13px",
+                        background: "#1e1e22",
+                        color: "#e4e4e7",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        padding: "8px 12px",
                     },
                 }}
             />

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
+import { useAuthStore } from "./useAuthStore";
 import {
     generateIdentityKeyPair,
     loadIdentityPrivateKey,
@@ -149,7 +150,6 @@ export const useCryptoStore = create((set, get) => ({
         if (!sessionKey) return null;
 
         const messageId = generateMessageId();
-        const { useAuthStore } = await import("./useAuthStore");
         const authUser = useAuthStore.getState().authUser;
 
         const aad = createAAD({
@@ -180,7 +180,6 @@ export const useCryptoStore = create((set, get) => ({
             return "[Legacy message]";
         }
 
-        const { useAuthStore } = await import("./useAuthStore");
         const authUser = useAuthStore.getState().authUser;
         const conversationId = [message.senderId, message.receiverId].sort().join("-");
 

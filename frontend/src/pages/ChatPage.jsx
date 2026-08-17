@@ -41,14 +41,16 @@ export default function ChatPage() {
 
     return (
         <div
-            className="flex h-screen w-screen items-center justify-center p-0 md:p-4 lg:p-6 transition-all duration-300 overflow-hidden"
+            className="flex h-screen w-screen items-center justify-center overflow-hidden"
             style={frameStyle}
         >
-            <div className="relative flex h-full w-full max-w-7xl overflow-hidden rounded-none md:rounded-3xl bg-slate-950/85 shadow-2xl border-0 md:border border-white/15 backdrop-blur-2xl">
+            <div className="relative flex h-full w-full max-w-[1400px] overflow-hidden rounded-none md:rounded-2xl"
+                 style={{ background: 'var(--bg-app)' }}>
+
                 <div
                     className={`${
                         selectedUser ? "hidden md:flex" : "flex"
-                    } h-full w-full md:w-auto shrink-0`}
+                    } h-full w-full md:w-[300px] lg:w-[320px] shrink-0`}
                 >
                     <Sidebar
                         onOpenSearch={() => setIsSearchOpen(true)}
@@ -59,11 +61,15 @@ export default function ChatPage() {
                 <div
                     className={`${
                         selectedUser ? "flex" : "hidden md:flex"
-                    } flex-1 flex-col h-full overflow-hidden bg-slate-900/40`}
+                    } flex-1 flex-col h-full overflow-hidden`}
+                    style={{ background: 'var(--bg-chat)' }}
                 >
                     {selectedUser ? (
                         <>
-                            <ChatHeader onOpenWallpapers={() => setIsWallpaperModalOpen(true)} />
+                            <ChatHeader
+                                onOpenWallpapers={() => setIsWallpaperModalOpen(true)}
+                                onOpenSearch={() => setIsSearchOpen(true)}
+                            />
                             <MessageList />
                             <ChatComposer />
                         </>
