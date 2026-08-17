@@ -36,7 +36,10 @@
 
 ### Messaging
 - Real-time 1-on-1 text messaging via Socket.io
-- Message delivery states: SENDING, SENT, DELIVERED, READ, FAILED
+- WhatsApp-style delivery receipts: ✓ sent, ✓✓ delivered (grey), ✓✓ read (accent)
+- Server-persisted delivery state — survives page refresh
+- Server-validated delivery ACK — prevents forged confirmations
+- Read receipts respect recipient's privacy setting
 - Retry failed messages with one click
 - Reply to specific messages
 - Emoji reactions on messages
@@ -77,6 +80,7 @@
 ### Block & Report
 - Block users to hide conversations and prevent message delivery
 - Unblock previously blocked users
+- Block→Reconnect system: send friend request from blocked users list; block stays active until accepted
 - Report users with reason categories (spam, harassment, scam, impersonation, illegal, other)
 - Optional report description field
 
@@ -229,7 +233,7 @@ All API routes are prefixed with `/api`. Protected routes require a valid Clerk 
 | `/api/auth` | Authentication check |
 | `/api/users` | User search, profile, public keys, username management |
 | `/api/friends` | Friend list, requests, accept/reject/cancel/remove |
-| `/api/blocks` | Block, unblock, report users |
+| `/api/blocks` | Block, unblock, report users, reconnect requests |
 | `/api/messages` | Conversations, messages, send, read, reactions, pin, edit, delete |
 | `/api/preferences` | User preferences and per-conversation preferences |
 | `/api/webhooks/clerk` | Clerk webhook receiver |

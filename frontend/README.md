@@ -49,7 +49,7 @@ App
 | Store | File | Responsibility |
 |---|---|---|
 | `useAuthStore` | `store/useAuthStore.js` | Current user profile (`authUser`), auth state, Socket.io connection, online users list |
-| `useChatStore` | `store/useChatStore.js` | Conversations list, active messages, selected user, send/receive/retry/delete, typing indicators, delivery states (SENDING/SENT/DELIVERED/READ/FAILED), block/unblock/report, pinned messages, decrypted previews, browser notifications |
+| `useChatStore` | `store/useChatStore.js` | Conversations list, active messages, selected user, send/receive/retry/delete, typing indicators, delivery states (SENDING/SENT/DELIVERED/READ/FAILED) with server-persisted `deliveredAt`, block/unblock/report, reconnect requests, pinned messages, decrypted previews, browser notifications |
 | `useCryptoStore` | `store/useCryptoStore.js` | Identity key pair generation and loading, friend public key fetching and caching, session key derivation and caching, message encryption/decryption, crypto state machine (KEY_SETUP/ENCRYPTED/KEY_CHANGED/DECRYPTION_FAILED/ENCRYPTION_FAILED/SESSION_REQUIRED/KEY_REVOKED) |
 | `useFriendStore` | `store/useFriendStore.js` | Friends list, incoming/outgoing requests, user search, send/accept/reject/cancel requests, real-time friend event subscriptions |
 | `useSoundStore` | `store/useSoundStore.js` | Sound toggle (persisted in localStorage), Web Audio API synthesizer for keystroke clicks, send chirps, receive chimes |

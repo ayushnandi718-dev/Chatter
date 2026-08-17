@@ -1,6 +1,6 @@
 # API Specification & Integration Contracts — Chatter
 
-> **Version:** 4.0.0
+> **Version:** 4.1.0
 > **Base URL (Dev):** `http://localhost:3001`
 > **Base URL (Prod):** `https://chatter-lrig.onrender.com`
 > **Protocols:** REST + WebSocket (Socket.io)
@@ -186,10 +186,21 @@
 
 #### `GET /api/blocks`
 - **Auth:** Yes
-- **Description:** List all blocked user IDs.
+- **Description:** List all blocked users with reconnect request status.
 - **Response 200:**
 ```json
-{ "blockedUserIds": ["userId1", "userId2"] }
+{
+  "blockedUserIds": ["userId1", "userId2"],
+  "blockedUsers": [
+    {
+      "_id": "...",
+      "username": "blocked_user",
+      "displayName": "Blocked U",
+      "profilePic": "https://...",
+      "reconnectStatus": "none | pending"
+    }
+  ]
+}
 ```
 
 #### `POST /api/blocks/:userId`
@@ -213,6 +224,29 @@
 }
 ```
 - **Response 201:** `{ "message": "Report submitted" }`
+
+#### `POST /api/blocks/reconnect/:userId`
+- **Auth:** Yes
+- **Description:** Send a friend request to a user you previously blocked. Creates a ReconnectRequest. The block remains active until the recipient accepts. Only the blocker can initiate this (the blocked user cannot).
+- **Response 200:** `{ "message": "Friend request sent" }`
+- **Socket.io:** Emits `reconnectRequest` to the recipient.
+
+#### `GET /api/blocks/reconnect/incoming`
+- **Auth:** Yes
+- **Description:** List incoming reconnect requests (from users who blocked you).
+- **Response 200:** Array of reconnect request objects with requester info.
+
+#### `POST /api/blocks/reconnect/accept/:requestId`
+- **Auth:** Yes (recipient only)
+- **Description:** Accept a reconnect request. Automatically removes the block and restores friendship.
+- **Response 200:** `{ "message": "Reconnect request accepted" }`
+- **Socket.io:** Emits `reconnectAccepted` to the requester.
+
+#### `POST /api/blocks/reconnect/decline/:requestId`
+- **Auth:** Yes (recipient only)
+- **Description:** Decline a reconnect request. Block remains active.
+- **Response 200:** `{ "message": "Reconnect request declined" }`
+- **Socket.io:** Emits `reconnectDeclined` to the requester.
 
 ---
 
@@ -243,6 +277,7 @@
       "fileName": "",
       "fileType": "",
       "fileSize": 0,
+      "deliveredAt": null,
       "readAt": null,
       "createdAt": "2026-08-17T..."
     },
@@ -289,9 +324,9 @@
 
 #### `POST /api/messages/read/:id`
 - **Auth:** Yes
-- **Description:** Mark all messages from user `:id` to the current user as read (sets `readAt` timestamp).
-- **Response 200:** `{ "message": "Messages marked as read" }`
-- **Socket.io:** Emits `messagesRead` to the other user.
+- **Description:** Mark all messages from user `:id` to the current user as read (sets `readAt` timestamp). If the current user has `readReceipts` disabled in their preferences, the `messagesRead` socket event is NOT sent to the other user (sender never sees read state).
+- **Response 200:** `{ "ok": true }`
+- **Socket.io:** Emits `messagesRead` to the other user (only if current user has read receipts enabled).
 
 #### `POST /api/messages/:id/reaction`
 - **Auth:** Yes
@@ -408,13 +443,19 @@ The server validates `userId` against MongoDB on connection and registers the so
 | S->C | `typing` | `{ from }` | Partner started typing |
 | S->C | `stopTyping` | `{ from }` | Partner stopped typing |
 | S->C | `newMessage` | `Message` | New incoming message (full object with E2EE fields) |
-| S->C | `messagesRead` | `{ by }` | Partner marked messages as read |
+| C->S | `messageDelivered` | `{ to, messageId }` | Acknowledge message receipt (server-validated, persists `deliveredAt`) |
+| S->C | `messageDelivered` | `{ messageId, by }` | Message delivery confirmed to sender |
+| S->C | `messagesRead` | `{ by }` | Partner marked messages as read (respects readReceipts privacy) |
 | S->C | `messageDeleted` | `{ messageId, deletedBy }` | Message deleted by the other party |
 | S->C | `messageEdited` | `{ messageId, text, editedAt }` | Message text was edited |
 | S->C | `messageReaction` | `{ messageId, reactions }` | Reactions updated on a message |
 | S->C | `friendRequest` | `{ requestId, from }` | New incoming friend request |
 | S->C | `friendAccepted` | `{ by }` | Your friend request was accepted |
 | S->C | `friendRemoved` | `{}` | A friend removed you from their list |
+| C->S | `reconnectRequest` | `{ to }` | Request reconnect after block |
+| S->C | `reconnectRequest` | `{ from }` | Incoming reconnect request |
+| S->C | `reconnectAccepted` | `{ by }` | Reconnect request accepted, block removed |
+| S->C | `reconnectDeclined` | `{ by }` | Reconnect request declined |
 
 ### Message Object Schema
 
@@ -441,6 +482,7 @@ interface Message {
   editedAt: string | null;
   deletedAt: string | null;
   isDeletedForEveryone: boolean;
+  deliveredAt: string | null;
   readAt: string | null;
   isPinned: boolean;
   pinnedAt: string | null;
@@ -464,7 +506,7 @@ SENDING -> SENT -> DELIVERED -> READ
 ```
 
 - **SENDING:** Optimistic UI insertion, request in flight
-- **SENT:** Server acknowledged, message stored in MongoDB
-- **DELIVERED:** Socket.io `newMessage` received by recipient
-- **READ:** Socket.io `messagesRead` received, `readAt` timestamp set
+- **SENT:** Server acknowledged, message stored in MongoDB (no `deliveredAt`)
+- **DELIVERED:** Recipient's client acknowledged receipt via `messageDelivered` socket event. Server persists `deliveredAt` in DB (idempotent). Survives page refresh.
+- **READ:** Recipient opened conversation, `readAt` set, `messagesRead` emitted (only if recipient has read receipts enabled). Accent color tick.
 - **FAILED:** Request failed, retry available

@@ -19,8 +19,8 @@ Chatter is a fully functional, production-deployed real-time messaging platform 
 | MongoDB Models | Complete | User, Message, Friendship, Block, Report, UserPreferences, ConversationPreferences |
 | Message System | Complete | CRUD, aggregations, E2EE fields, media support, reactions, pin, edit, delete, reply |
 | Friend System | Complete | Search, request/accept/reject/cancel, remove, real-time events |
-| Block & Report System | Complete | Block/unblock/report (backend + frontend) |
-| User Preferences | Complete | readReceipts, showOnlineStatus, showProfilePhoto, messageSounds, typingSounds |
+| Block & Report System | Complete | Block/unblock/report (backend + frontend) + Block→Reconnect system (blocker can send friend request, block remains active until accepted) |
+| User Preferences | Complete | readReceipts, showOnlineStatus, showProfilePhoto, messageSounds, typingSounds — all auto-save on toggle |
 | Conversation Preferences | Complete | Mute (with duration), pin, archive |
 | ImageKit Media Pipeline | Complete | Zero-disk Multer -> ImageKit CDN |
 | Cron Keep-Alive | Complete | 14-minute interval for free-tier hosting |
@@ -58,6 +58,10 @@ Chatter is a fully functional, production-deployed real-time messaging platform 
 ### Messaging
 - Real-time text messaging via Socket.io
 - Optimistic UI updates with delivery states (SENDING/SENT/DELIVERED/READ/FAILED)
+- WhatsApp-style delivery receipts: ✓ sent, ✓✓ delivered (grey), ✓✓ read (accent)
+- Server-persisted `deliveredAt` — delivery state survives page refresh
+- Server-validated `messageDelivered` socket ACK — prevents forged delivery confirmations
+- Read receipts respect privacy setting — if recipient disables read receipts, sender never sees read state
 - Message retry on failure
 - Reply to messages
 - Emoji reactions (add/toggle/remove)
@@ -88,6 +92,10 @@ Chatter is a fully functional, production-deployed real-time messaging platform 
 - Unblock users
 - Report with reason categories (spam, harassment, scam, impersonation, illegal, other)
 - Optional description for reports
+- Block→Reconnect system: blocker can send friend request from Settings→Blocked Users
+- Reconnect request visible to blocked user in FriendRequests UI
+- Accept reconnect auto-removes block and restores friendship
+- Block remains active until recipient accepts (not just sending the request)
 
 ### Customization
 - 11 dynamic themes via CSS variables
@@ -105,8 +113,14 @@ Chatter is a fully functional, production-deployed real-time messaging platform 
 ### Real-Time Features
 - Typing indicators
 - Online presence tracking
-- Read receipts
+- Read receipts with server-persisted delivery state
+- Delivery receipt ACK with server-side validation
 - Browser push notifications for background tabs
+
+### UI Polish
+- UserProfileModal — clickable profile pics show user profile with friendship/block status
+- Outfit font (body) + Bitcount Ink (brand text) via Google Fonts
+- Settings auto-save — all toggles save immediately on change, no Save button needed
 
 ---
 
@@ -159,6 +173,7 @@ Chatter is a fully functional, production-deployed real-time messaging platform 
 | E2EE server-side | Pass | Server never sees plaintext; only stores ciphertext |
 | AAD binding | Pass | Prevents cross-conversation decryption and replay attacks |
 | Crypto self-test | Pass | Full pipeline verification on startup |
+| Delivery ACK validation | Pass | Server verifies message exists, sender/recipient match before persisting deliveredAt |
 
 ---
 

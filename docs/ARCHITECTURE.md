@@ -1,6 +1,6 @@
 # System Architecture & Technical Design — Chatter
 
-> **Version:** 4.0.0
+> **Version:** 4.1.0
 > **Product:** Chatter — Private Real-Time Messaging Platform
 > **Audience:** Engineers, DevOps, System Architects
 > **Last Updated:** August 17, 2026
@@ -171,7 +171,7 @@ App
 | `/api/auth` | `auth.route.js` | `checkAuth` |
 | `/api/users` | `user.route.js` | `searchUsers`, `checkUsername`, `setUsername`, `updateDisplayName`, `updateAbout`, `getUserProfile`, `uploadPublicKey`, `getPublicKey` |
 | `/api/friends` | `friend.route.js` | `getFriends`, `getRequests`, `sendRequest`, `acceptRequest`, `rejectRequest`, `cancelRequest`, `removeFriend` |
-| `/api/blocks` | `block.route.js` | `getBlockedUsers`, `blockUser`, `unblockUser`, `reportUser` |
+| `/api/blocks` | `block.route.js` | `getBlockedUsers`, `blockUser`, `unblockUser`, `reportUser`, `sendReconnectRequest`, `acceptReconnectRequest`, `declineReconnectRequest`, `getIncomingReconnectRequests` |
 | `/api/messages` | `message.route.js` | `getConversationsForSidebar`, `getMessages`, `sendMessage`, `markAsRead`, `deleteMessage`, `editMessage`, `addReaction`, `pinMessage`, `getPinnedMessages` |
 | `/api/preferences` | `preferences.route.js` | `getUserPreferences`, `updateUserPreferences`, `getConversationPreferences`, `updateConversationPreferences` |
 
@@ -325,6 +325,8 @@ erDiagram
     USER ||--o{ REPORT : "reported"
     USER ||--o| USERPREFERENCES : "has"
     USER ||--o{ CONVERSATIONPREFERENCES : "has"
+    USER ||--o{ RECONNECTREQUEST : "requester"
+    USER ||--o{ RECONNECTREQUEST : "recipient"
 
     USER {
         ObjectId _id PK
@@ -366,6 +368,7 @@ erDiagram
         Date deletedAt "Soft delete timestamp"
         boolean isDeletedForEveryone "Delete for all parties"
         Date readAt "Read receipt timestamp"
+        Date deliveredAt "Delivery confirmation timestamp"
         boolean isPinned "Pin status"
         Date pinnedAt "Pin timestamp"
         Date createdAt
@@ -423,6 +426,15 @@ erDiagram
         Date createdAt
         Date updatedAt
     }
+
+    RECONNECTREQUEST {
+        ObjectId _id PK
+        ObjectId requester FK "Blocker sending reconnect"
+        ObjectId recipient FK "Blocked user"
+        string status "pending | accepted | declined"
+        Date createdAt
+        Date updatedAt
+    }
 ```
 
 ### 5.2 Database Indexes
@@ -436,6 +448,8 @@ erDiagram
 | Friendship | `{ requester: 1, status: 1 }` | Outgoing request lookup |
 | Block | `{ blocker: 1, blocked: 1 }` (unique) | Prevent duplicate blocks |
 | Block | `{ blocked: 1, blocker: 1 }` | Reverse block lookup |
+| ReconnectRequest | `{ requester: 1, recipient: 1, status: 1 }` | Reconnect request lookup |
+| ReconnectRequest | `{ recipient: 1, status: 1 }` | Incoming reconnect requests |
 | Report | `{ reportedUser: 1, status: 1 }` | Report management |
 | ConversationPreferences | `{ userId: 1, partnerId: 1 }` (unique) | Per-conversation prefs |
 | User | `{ displayName: "text", username: "text }` | Full-text search |
@@ -467,16 +481,20 @@ All protected routes require a valid Clerk session token.
 | POST | `/api/friends/reject/:requestId` | Yes | Reject friend request |
 | POST | `/api/friends/cancel/:requestId` | Yes | Cancel outgoing request |
 | DELETE | `/api/friends/:friendId` | Yes | Remove friend |
-| GET | `/api/blocks` | Yes | List blocked user IDs |
+| GET | `/api/blocks` | Yes | List blocked users (full objects with reconnect request status) |
 | POST | `/api/blocks/:userId` | Yes | Block a user |
 | DELETE | `/api/blocks/:userId` | Yes | Unblock a user |
 | POST | `/api/blocks/report/:userId` | Yes | Report a user |
+| POST | `/api/blocks/reconnect/:userId` | Yes | Send friend request to a blocked user (blocker only) |
+| GET | `/api/blocks/reconnect/incoming` | Yes | List incoming reconnect requests |
+| POST | `/api/blocks/reconnect/accept/:requestId` | Yes | Accept reconnect request (removes block + restores friendship) |
+| POST | `/api/blocks/reconnect/decline/:requestId` | Yes | Decline reconnect request |
 | GET | `/api/messages/conversations` | Yes | Conversation sidebar list |
 | GET | `/api/messages/unread-count` | Yes | Total unread message count |
 | GET | `/api/messages/pinned/:userId` | Yes | Pinned messages for a conversation |
 | GET | `/api/messages/:id` | Yes | Message history with user |
 | POST | `/api/messages/send/:id` | Yes | Send message (JSON or multipart) |
-| POST | `/api/messages/read/:id` | Yes | Mark messages as read |
+| POST | `/api/messages/read/:id` | Yes | Mark messages as read (respects readReceipts privacy — skips socket event if recipient has it disabled) |
 | POST | `/api/messages/:id/reaction` | Yes | Add/toggle emoji reaction |
 | POST | `/api/messages/:id/pin` | Yes | Toggle pin status |
 | PATCH | `/api/messages/:id` | Yes | Edit message text |
@@ -499,13 +517,52 @@ All protected routes require a valid Clerk session token.
 | S->C | `typing` | `{ from }` | Partner is typing |
 | S->C | `stopTyping` | `{ from }` | Partner stopped typing |
 | S->C | `newMessage` | `MessageObject` | New incoming message (includes E2EE fields) |
-| S->C | `messagesRead` | `{ by }` | Messages marked as read by partner |
+| C->S | `messageDelivered` | `{ to, messageId }` | Acknowledge message receipt (validated + persisted server-side) |
+| S->C | `messageDelivered` | `{ messageId, by }` | Message delivery confirmed to sender |
+| S->C | `messagesRead` | `{ by }` | Messages marked as read by partner (respects readReceipts privacy) |
 | S->C | `messageDeleted` | `{ messageId, deletedBy }` | Message deleted by sender |
 | S->C | `messageEdited` | `{ messageId, text, editedAt }` | Message edited by sender |
 | S->C | `messageReaction` | `{ messageId, reactions }` | Reaction updated on a message |
 | S->C | `friendRequest` | `{ requestId, from }` | New friend request received |
 | S->C | `friendAccepted` | `{ by }` | Friend request accepted |
 | S->C | `friendRemoved` | `{}` | A friend removed you |
+| C->S | `reconnectRequest` | `{ to }` | Request reconnect after block |
+| S->C | `reconnectRequest` | `{ from }` | Incoming reconnect request |
+
+### 6.3 Delivery Receipts Architecture
+
+```
+WhatsApp-style tick system:
+  ✓  = SENT    (server accepted and stored the message)
+  ✓✓ = DELIVERED (recipient's client acknowledged receipt, deliveredAt persisted)
+  ✓✓ = READ     (recipient opened conversation, readAt set, accent color)
+
+Flow:
+  Sender sends message
+    -> Backend stores message (no deliveredAt/readAt)
+    -> Socket emits "newMessage" to recipient (if online)
+    -> Sender sees ✓ (SENT)
+
+  Recipient receives "newMessage"
+    -> Client validates: message exists, senderId matches, receiverId matches ack sender
+    -> Backend persists deliveredAt in DB (idempotent — skipped if already set)
+    -> Backend emits "messageDelivered" to sender
+    -> Sender sees ✓✓ (DELIVERED, grey)
+
+  Recipient opens conversation (markAsRead API)
+    -> Backend sets readAt on unread messages
+    -> Backend checks recipient's readReceipts privacy setting
+    -> If readReceipts enabled: emits "messagesRead" to sender
+    -> If readReceipts disabled: sender never notified (stays ✓✓ grey)
+    -> Sender sees ✓✓ (READ, accent color) only if recipient has read receipts on
+
+  Offline recipient:
+    -> Sender sees ✓ (SENT)
+    -> Messages stored in DB with no deliveredAt
+    -> When recipient reconnects and receives messages, delivery ACK flow triggers normally
+```
+
+**Server-side validation:** The `messageDelivered` socket handler verifies the message exists, `senderId` matches the intended recipient (`to`), and `receiverId` matches the ACK sender (`userId`). Forged or duplicate ACKs are silently rejected.
 
 ---
 
@@ -520,6 +577,7 @@ All protected routes require a valid Clerk session token.
 | API Privacy | `toPublicUser()` | Strips email, clerkId, fullName from all user-facing responses |
 | Input Validation | ReDoS-safe regex | Anchored regex patterns for user search |
 | Socket Validation | MongoDB userId check | Socket.io connections validated against database |
+| Delivery ACK Validation | Server-side message lookup | `messageDelivered` verifies message exists, sender/recipient match before persisting `deliveredAt` |
 | File Upload | In-memory Multer | Zero disk writes, 25MB limit, MIME type detection |
 | CORS | Origin restriction | Production: only `FRONTEND_URL`; localhost excluded |
 | E2EE | Client-side encryption | Server stores only ciphertext; AAD prevents cross-conversation decryption |
