@@ -1,5 +1,7 @@
 import User from "../models/user.model.js";
 import Friendship from "../models/friendship.model.js";
+import Block from "../models/block.model.js";
+import ReconnectRequest from "../models/reconnectRequest.model.js";
 
 export async function searchUsers(req, res) {
     try {
@@ -174,6 +176,7 @@ export async function updateAbout(req, res) {
 export async function getUserProfile(req, res) {
     try {
         const { userId } = req.params;
+        const currentUserId = req.user._id;
 
         const user = await User.findById(userId).select("username displayName profilePic about createdAt");
         if (!user) {
@@ -182,10 +185,26 @@ export async function getUserProfile(req, res) {
 
         const friendship = await Friendship.findOne({
             $or: [
-                { requester: req.user._id, recipient: userId },
-                { requester: userId, recipient: req.user._id },
+                { requester: currentUserId, recipient: userId },
+                { requester: userId, recipient: currentUserId },
             ],
         });
+
+        const iBlockedThem = await Block.findOne({ blocker: currentUserId, blocked: userId });
+        const theyBlockedMe = await Block.findOne({ blocker: userId, blocked: currentUserId });
+
+        let reconnectRequest = null;
+        if (iBlockedThem) {
+            reconnectRequest = await ReconnectRequest.findOne({
+                requester: currentUserId,
+                recipient: userId,
+                status: "pending",
+            });
+        }
+
+        let blockStatus = "none";
+        if (iBlockedThem) blockStatus = "blocked_by_me";
+        else if (theyBlockedMe) blockStatus = "blocked_by_them";
 
         res.status(200).json({
             _id: user._id,
@@ -196,6 +215,8 @@ export async function getUserProfile(req, res) {
             createdAt: user.createdAt,
             friendshipStatus: friendship?.status || "none",
             friendshipId: friendship?._id || null,
+            blockStatus,
+            reconnectRequestId: reconnectRequest?._id || null,
         });
     } catch (error) {
         console.error("Error in getUserProfile:", error.message);

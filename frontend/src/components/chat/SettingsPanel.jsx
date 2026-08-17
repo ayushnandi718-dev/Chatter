@@ -80,9 +80,8 @@ function BlockedUserCard({ user, onReconnect, onUnblock }) {
                     @{user.username}
                 </p>
                 {isPending && (
-                    <p className="text-[9px] mt-0.5 flex items-center gap-1" style={{ color: 'var(--accent)' }}>
-                        <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-                        Reconnect request sent
+                    <p className="text-[9px] mt-0.5" style={{ color: 'var(--accent)' }}>
+                        Friend request sent &mdash; waiting for them to accept
                     </p>
                 )}
             </div>
@@ -96,9 +95,9 @@ function BlockedUserCard({ user, onReconnect, onUnblock }) {
                         color: isPending ? 'var(--text-muted)' : 'var(--accent)',
                         border: isPending ? '1px solid var(--border)' : '1px solid transparent',
                     }}
-                    title={isPending ? "Request already sent" : "Request to Reconnect"}
+                    title={isPending ? "Request already sent" : "Send Friend Request"}
                 >
-                    {isPending ? "Sent" : "Reconnect"}
+                    {isPending ? "Request Sent" : "Send Friend Request"}
                 </button>
                 <button
                     onClick={() => onUnblock(user._id, user.displayName || user.username)}
@@ -268,7 +267,7 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                             ) : (
                                 <>
                                     <p className="text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                                        Blocked users cannot message you. You can send a reconnect request, but they must accept before you can chat again.
+                                        Blocked users cannot message you. Send a friend request to reconnect &mdash; they must accept before you can chat again.
                                     </p>
                                     <div className="rounded-xl overflow-hidden" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                                         <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>

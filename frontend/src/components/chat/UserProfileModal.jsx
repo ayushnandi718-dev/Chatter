@@ -1,35 +1,126 @@
 import { useState, useEffect } from "react";
 import { axiosInstance } from "../../lib/axios";
-import { X, MessageSquare, UserPlus, UserCheck, Clock, Shield } from "lucide-react";
+import { X, MessageSquare, UserPlus, UserCheck, Clock, Shield, Ban } from "lucide-react";
 import toast from "react-hot-toast";
-import { useChatStore } from "../../store/useChatStore";
 import { useFriendStore } from "../../store/useFriendStore";
+import { useChatStore } from "../../store/useChatStore";
 
 export function UserProfileModal({ userId, onClose, onStartChat }) {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const sendRequest = useFriendStore((s) => s.sendRequest);
+    const sendReconnectRequest = useChatStore((s) => s.sendReconnectRequest);
 
-    useEffect(() => {
+    const fetchProfile = () => {
         if (!userId) return;
         setLoading(true);
         axiosInstance.get(`/users/profile/${userId}`)
             .then((res) => setProfile(res.data))
             .catch(() => toast.error("Failed to load profile"))
             .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        fetchProfile();
     }, [userId]);
 
     if (!userId) return null;
 
-    const friendshipLabel = (status) => {
-        switch (status) {
-            case "accepted": return { text: "Friends", icon: UserCheck, color: "var(--success)" };
-            case "pending": return { text: "Request Sent", icon: Clock, color: "var(--text-muted)" };
-            default: return null;
+    const handleSendReconnect = async () => {
+        try {
+            await sendReconnectRequest(userId);
+            fetchProfile();
+        } catch {
+            // toast already shown
         }
     };
 
-    const friendStatus = profile ? friendshipLabel(profile.friendshipStatus) : null;
+    const handleAddFriend = async () => {
+        try {
+            await sendRequest(userId);
+            fetchProfile();
+        } catch {
+            // toast already shown
+        }
+    };
+
+    const renderActions = () => {
+        if (!profile) return null;
+
+        const { blockStatus, friendshipStatus, reconnectRequestId } = profile;
+
+        if (blockStatus === "blocked_by_me") {
+            return (
+                <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl"
+                         style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                        <Ban className="h-3.5 w-3.5" style={{ color: 'var(--danger)' }} />
+                        <span className="text-[11px] font-medium" style={{ color: 'var(--danger)' }}>
+                            Blocked
+                        </span>
+                    </div>
+                    <p className="text-[10px] text-center" style={{ color: 'var(--text-muted)' }}>
+                        This user is blocked. Manage in Settings &rarr; Privacy &rarr; Blocked Users.
+                    </p>
+                </div>
+            );
+        }
+
+        if (blockStatus === "blocked_by_them") {
+            return (
+                <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl"
+                         style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                        <Ban className="h-3.5 w-3.5" style={{ color: 'var(--danger)' }} />
+                        <span className="text-[11px] font-medium" style={{ color: 'var(--danger)' }}>
+                            You can't interact with this user
+                        </span>
+                    </div>
+                </div>
+            );
+        }
+
+        if (friendshipStatus === "accepted") {
+            return (
+                <button
+                    onClick={() => {
+                        onClose();
+                        if (onStartChat) onStartChat(profile._id);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold text-white transition-colors"
+                    style={{ background: 'var(--accent)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent)'}
+                >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Message
+                </button>
+            );
+        }
+
+        if (friendshipStatus === "pending") {
+            return (
+                <div className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-medium"
+                     style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                    <Clock className="h-3.5 w-3.5" />
+                    Friend Request Pending
+                </div>
+            );
+        }
+
+        return (
+            <button
+                onClick={handleAddFriend}
+                className="w-full flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold text-white transition-colors"
+                style={{ background: 'var(--accent)' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent)'}
+            >
+                <UserPlus className="h-3.5 w-3.5" />
+                Add Friend
+            </button>
+        );
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -39,7 +130,7 @@ export function UserProfileModal({ userId, onClose, onStartChat }) {
                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
                  onClick={(e) => e.stopPropagation()}>
 
-                {/* Header / Banner */}
+                {/* Banner */}
                 <div className="relative h-24 w-full"
                      style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-hover))' }}>
                     <button onClick={onClose}
@@ -49,7 +140,7 @@ export function UserProfileModal({ userId, onClose, onStartChat }) {
                     </button>
                 </div>
 
-                {/* Avatar + Info */}
+                {/* Content */}
                 <div className="px-5 pb-5 -mt-10 text-center">
                     {loading ? (
                         <div className="py-8">
@@ -81,50 +172,9 @@ export function UserProfileModal({ userId, onClose, onStartChat }) {
                                 </p>
                             )}
 
-                            {/* Friendship status */}
-                            {friendStatus && (
-                                <div className="flex items-center justify-center gap-1.5 mt-3">
-                                    <friendStatus.icon className="h-3 w-3" style={{ color: friendStatus.color }} />
-                                    <span className="text-[10px] font-medium" style={{ color: friendStatus.color }}>
-                                        {friendStatus.text}
-                                    </span>
-                                </div>
-                            )}
-
                             {/* Actions */}
-                            <div className="flex gap-2 mt-4">
-                                {profile.friendshipStatus === "accepted" ? (
-                                    <button
-                                        onClick={() => {
-                                            onClose();
-                                            if (onStartChat) onStartChat(profile._id);
-                                        }}
-                                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold text-white transition-colors"
-                                        style={{ background: 'var(--accent)' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent)'}
-                                    >
-                                        <MessageSquare className="h-3.5 w-3.5" />
-                                        Message
-                                    </button>
-                                ) : profile.friendshipStatus === "pending" ? (
-                                    <div className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-medium"
-                                         style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-                                        <Clock className="h-3.5 w-3.5" />
-                                        Request Sent
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={() => sendRequest(profile._id)}
-                                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold text-white transition-colors"
-                                        style={{ background: 'var(--accent)' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent)'}
-                                    >
-                                        <UserPlus className="h-3.5 w-3.5" />
-                                        Add Friend
-                                    </button>
-                                )}
+                            <div className="mt-4">
+                                {renderActions()}
                             </div>
                         </>
                     ) : (
