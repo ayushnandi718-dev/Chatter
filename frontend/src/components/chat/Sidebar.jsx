@@ -165,10 +165,7 @@ export function Sidebar({ onOpenSearch, onOpenRequests, onOpenSettings }) {
             <div className="p-3 space-y-3">
                 <div className="flex items-center justify-between px-1">
                     <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg"
-                             style={{ background: 'var(--accent)' }}>
-                            <span className="text-white text-xs font-bold">C</span>
-                        </div>
+                        <img src="/logo.png" alt="Chatter" className="h-7 w-7 rounded-lg object-cover" />
                         <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Chatter</span>
                     </div>
                     <div className="flex items-center gap-1">

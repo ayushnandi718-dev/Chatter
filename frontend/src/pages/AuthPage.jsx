@@ -13,10 +13,7 @@ export default function AuthPage() {
                 <div className="flex items-center justify-between px-6 py-4"
                      style={{ borderBottom: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-2.5">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl font-bold text-white"
-                             style={{ background: 'var(--accent)' }}>
-                            💬
-                        </div>
+                        <img src="/logo.png" alt="Chatter" className="h-9 w-9 rounded-xl object-cover" />
                         <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
                             Chatter
                         </span>
