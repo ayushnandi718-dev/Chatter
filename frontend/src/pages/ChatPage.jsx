@@ -10,6 +10,7 @@ import { WallpaperPicker } from "../components/chat/WallpaperPicker";
 import { SearchUsers } from "../components/chat/SearchUsers";
 import { FriendRequests } from "../components/chat/FriendRequests";
 import { Sidebar } from "../components/chat/Sidebar";
+import { SettingsPanel } from "../components/chat/SettingsPanel";
 
 export default function ChatPage() {
     const selectedUser = useChatStore((state) => state.selectedUser);
@@ -25,6 +26,7 @@ export default function ChatPage() {
     const [isWallpaperOpen, setIsWallpaperOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isRequestsOpen, setIsRequestsOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     useEffect(() => {
         subscribeToMessages();
@@ -52,6 +54,7 @@ export default function ChatPage() {
                     <Sidebar
                         onOpenSearch={() => setIsSearchOpen(true)}
                         onOpenRequests={() => setIsRequestsOpen(true)}
+                        onOpenSettings={() => setIsSettingsOpen(true)}
                     />
                 </div>
 
@@ -84,6 +87,11 @@ export default function ChatPage() {
 
             {isSearchOpen && <SearchUsers onClose={() => setIsSearchOpen(false)} />}
             {isRequestsOpen && <FriendRequests onClose={() => setIsRequestsOpen(false)} />}
+            <SettingsPanel
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                onOpenWallpapers={() => { setIsSettingsOpen(false); setIsWallpaperOpen(true); }}
+            />
         </div>
     );
 }

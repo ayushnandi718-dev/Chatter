@@ -15,6 +15,7 @@ import messageRoutes from "./routes/message.route.js";
 import userRoutes from "./routes/user.route.js";
 import friendRoutes from "./routes/friend.route.js";
 import blockRoutes from "./routes/block.route.js";
+import preferencesRoutes from "./routes/preferences.route.js";
 
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -47,6 +48,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/friends", friendRoutes);
 app.use("/api/blocks", blockRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/preferences", preferencesRoutes);
 
 if (fs.existsSync(publicDir)) {
     app.use(express.static(publicDir));

@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useChatStore } from "../../store/useChatStore";
 import { useFriendStore } from "../../store/useFriendStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCryptoStore } from "../../store/useCryptoStore";
+import { usePreferencesStore } from "../../store/usePreferencesStore";
 import { UserButton } from "@clerk/react";
-import { Search, MessageSquare, Users, UserPlus, Bell, Shield } from "lucide-react";
+import { Search, MessageSquare, Users, UserPlus, Bell, Shield, VolumeX, Pin, Archive, ArchiveRestore, Settings } from "lucide-react";
 
-export function Sidebar({ onOpenSearch, onOpenRequests }) {
+export function Sidebar({ onOpenSearch, onOpenRequests, onOpenSettings }) {
     const conversations = useChatStore((state) => state.conversations);
     const selectedUser = useChatStore((state) => state.selectedUser);
     const setSelectedUser = useChatStore((state) => state.setSelectedUser);
@@ -22,18 +23,140 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
     const authUser = useAuthStore((state) => state.authUser);
     const onlineUsers = useAuthStore((state) => state.onlineUsers);
 
+    const conversationPrefs = usePreferencesStore((state) => state.conversationPrefs);
+    const updateConversationPreferences = usePreferencesStore((state) => state.updateConversationPreferences);
+    const isMuted = usePreferencesStore((state) => state.isMuted);
+    const isPinned = usePreferencesStore((state) => state.isPinned);
+    const isArchived = usePreferencesStore((state) => state.isArchived);
+
     const [sidebarTab, setSidebarTab] = useState("chats");
+    const [contextMenu, setContextMenu] = useState(null);
+    const [showArchived, setShowArchived] = useState(false);
+    const contextMenuRef = useRef(null);
+
+    useEffect(() => {
+        const handleClick = (e) => {
+            if (contextMenuRef.current && !contextMenuRef.current.contains(e.target)) {
+                setContextMenu(null);
+            }
+        };
+        if (contextMenu) document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+    }, [contextMenu]);
+
+    const handleContextMenu = useCallback((e, partnerId) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu({ x: e.clientX, y: e.clientY, partnerId });
+    }, []);
+
+    const handleMute = useCallback(async (partnerId, duration) => {
+        const mutedUntil = duration === null ? null : new Date(Date.now() + duration).toISOString();
+        await updateConversationPreferences(partnerId, { muted: true, mutedUntil });
+        setContextMenu(null);
+    }, [updateConversationPreferences]);
+
+    const handleUnmute = useCallback(async (partnerId) => {
+        await updateConversationPreferences(partnerId, { muted: false, mutedUntil: null });
+        setContextMenu(null);
+    }, [updateConversationPreferences]);
+
+    const handlePin = useCallback(async (partnerId) => {
+        const currentPinned = isPinned(partnerId);
+        await updateConversationPreferences(partnerId, { pinned: !currentPinned });
+        setContextMenu(null);
+    }, [updateConversationPreferences, isPinned]);
+
+    const handleArchive = useCallback(async (partnerId) => {
+        const currentArchived = isArchived(partnerId);
+        await updateConversationPreferences(partnerId, { archived: !currentArchived });
+        setContextMenu(null);
+    }, [updateConversationPreferences, isArchived]);
 
     const filteredConversations = conversations.filter((c) =>
         c.partner?.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.partner?.username?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const activeConversations = filteredConversations.filter((c) => !isArchived(c.partner?._id));
+    const archivedConversations = filteredConversations.filter((c) => isArchived(c.partner?._id));
+
+    const sortedActive = [...activeConversations].sort((a, b) => {
+        const aPinned = isPinned(a.partner?._id);
+        const bPinned = isPinned(b.partner?._id);
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+        const aDate = new Date(a.lastMessage?.createdAt || a.updatedAt || 0);
+        const bDate = new Date(b.lastMessage?.createdAt || b.updatedAt || 0);
+        return bDate - aDate;
+    });
+
     const filteredFriends = friends.filter(
         (f) =>
             f.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             f.username?.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const renderConvItem = (conv) => {
+        const partner = conv.partner;
+        const partnerId = partner?._id;
+        const isOnline = onlineUsers.includes(partnerId);
+        const isSelected = selectedUser?._id === partnerId;
+        const muted = isMuted(partnerId);
+        const pinned = isPinned(partnerId);
+        const preview = decryptedPreviews[conv._id]
+            || conv.lastMessage?.text
+            || (conv.lastMessage?.image && "Photo")
+            || (conv.lastMessage?.video && "Video")
+            || "";
+
+        return (
+            <button
+                key={conv._id}
+                onClick={() => setSelectedUser(partner)}
+                onContextMenu={(e) => handleContextMenu(e, partnerId)}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors"
+                style={{
+                    background: isSelected ? 'var(--bg-active)' : 'transparent',
+                    borderLeft: isSelected ? '2px solid var(--accent)' : '2px solid transparent',
+                }}
+                onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+            >
+                <div className="relative shrink-0">
+                    <img src={partner?.profilePic || "/favicon.svg"}
+                         alt=""
+                         className="h-9 w-9 rounded-full object-cover" />
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2"
+                          style={{
+                              background: isOnline ? 'var(--success)' : '#52525b',
+                              ringColor: 'var(--bg-sidebar)',
+                          }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                        <h4 className="text-xs font-medium truncate"
+                            style={{ color: 'var(--text-primary)' }}>
+                            {partner?.displayName || partner?.username}
+                        </h4>
+                        {pinned && <Pin className="h-2.5 w-2.5 shrink-0" style={{ color: 'var(--text-muted)' }} />}
+                        {muted && <VolumeX className="h-2.5 w-2.5 shrink-0" style={{ color: 'var(--text-muted)' }} />}
+                    </div>
+                    <p className="text-[10px] truncate mt-0.5"
+                       style={{ color: 'var(--text-muted)' }}>
+                        {preview || "Start chatting"}
+                    </p>
+                </div>
+            </button>
+        );
+    };
+
+    const muteOptions = [
+        { label: "1 hour", duration: 60 * 60 * 1000 },
+        { label: "8 hours", duration: 8 * 60 * 60 * 1000 },
+        { label: "24 hours", duration: 24 * 60 * 60 * 1000 },
+        { label: "Forever", duration: null },
+    ];
 
     return (
         <aside className="flex h-full w-full flex-col"
@@ -49,6 +172,16 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
                         <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Chatter</span>
                     </div>
                     <div className="flex items-center gap-1">
+                        <button
+                            onClick={onOpenSettings}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+                            style={{ color: 'var(--text-secondary)' }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            title="Settings"
+                        >
+                            <Settings className="h-3.5 w-3.5" />
+                        </button>
                         <button
                             onClick={onOpenRequests}
                             className="relative flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
@@ -126,7 +259,7 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
                              style={{ color: 'var(--text-muted)' }}>
                             <span className="text-[11px]">Loading...</span>
                         </div>
-                    ) : filteredConversations.length === 0 ? (
+                    ) : sortedActive.length === 0 && archivedConversations.length === 0 ? (
                         <div className="py-10 px-3 text-center">
                             <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>No conversations yet.</p>
                             <button onClick={onOpenSearch}
@@ -136,51 +269,29 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
                             </button>
                         </div>
                     ) : (
-                        filteredConversations.map((conv) => {
-                            const partner = conv.partner;
-                            const isOnline = onlineUsers.includes(partner?._id);
-                            const isSelected = selectedUser?._id === partner?._id;
-                            const preview = decryptedPreviews[conv._id]
-                                || conv.lastMessage?.text
-                                || (conv.lastMessage?.image && "Photo")
-                                || (conv.lastMessage?.video && "Video")
-                                || "";
+                        <>
+                            {sortedActive.map(renderConvItem)}
 
-                            return (
-                                <button
-                                    key={conv._id}
-                                    onClick={() => setSelectedUser(partner)}
-                                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors"
-                                    style={{
-                                        background: isSelected ? 'var(--bg-active)' : 'transparent',
-                                        borderLeft: isSelected ? '2px solid var(--accent)' : '2px solid transparent',
-                                    }}
-                                    onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                                    onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
-                                >
-                                    <div className="relative shrink-0">
-                                        <img src={partner?.profilePic || "/favicon.svg"}
-                                             alt=""
-                                             className="h-9 w-9 rounded-full object-cover" />
-                                        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2"
-                                              style={{
-                                                  background: isOnline ? 'var(--success)' : '#52525b',
-                                                  ringColor: 'var(--bg-sidebar)',
-                                              }} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="text-xs font-medium truncate"
-                                            style={{ color: 'var(--text-primary)' }}>
-                                            {partner?.displayName || partner?.username}
-                                        </h4>
-                                        <p className="text-[10px] truncate mt-0.5"
-                                           style={{ color: preview ? 'var(--text-muted)' : 'var(--text-muted)' }}>
-                                            {preview || "Start chatting"}
-                                        </p>
-                                    </div>
-                                </button>
-                            );
-                        })
+                            {archivedConversations.length > 0 && (
+                                <div className="mt-2">
+                                    <button
+                                        onClick={() => setShowArchived(!showArchived)}
+                                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <Archive className="h-3 w-3" style={{ color: 'var(--text-muted)' }} />
+                                        <span className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                            Archived ({archivedConversations.length})
+                                        </span>
+                                        <span className="ml-auto text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                            {showArchived ? "▼" : "▶"}
+                                        </span>
+                                    </button>
+                                    {showArchived && archivedConversations.map(renderConvItem)}
+                                </div>
+                            )}
+                        </>
                     )
                 ) : isFriendsLoading ? (
                     <div className="flex items-center justify-center py-12"
@@ -238,6 +349,78 @@ export function Sidebar({ onOpenSearch, onOpenRequests }) {
                     })
                 )}
             </div>
+
+            {contextMenu && (
+                <div
+                    ref={contextMenuRef}
+                    className="fixed z-50 rounded-lg py-1 min-w-[160px]"
+                    style={{
+                        left: contextMenu.x,
+                        top: contextMenu.y,
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                    }}
+                >
+                    <button
+                        onClick={() => handlePin(contextMenu.partnerId)}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-[11px] font-medium transition-colors"
+                        style={{ color: 'var(--text-primary)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        <Pin className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />
+                        {isPinned(contextMenu.partnerId) ? "Unpin" : "Pin"}
+                    </button>
+
+                    {isMuted(contextMenu.partnerId) ? (
+                        <button
+                            onClick={() => handleUnmute(contextMenu.partnerId)}
+                            className="flex w-full items-center gap-2.5 px-3 py-2 text-[11px] font-medium transition-colors"
+                            style={{ color: 'var(--text-primary)' }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <VolumeX className="h-3.5 w-3.5" style={{ color: 'var(--accent)' }} />
+                            Unmute
+                        </button>
+                    ) : (
+                        muteOptions.map(({ label, duration }) => (
+                            <button
+                                key={label}
+                                onClick={() => handleMute(contextMenu.partnerId, duration)}
+                                className="flex w-full items-center gap-2.5 px-3 py-2 text-[11px] font-medium transition-colors"
+                                style={{ color: 'var(--text-primary)' }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                                <VolumeX className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />
+                                Mute {label}
+                            </button>
+                        ))
+                    )}
+
+                    <button
+                        onClick={() => handleArchive(contextMenu.partnerId)}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-[11px] font-medium transition-colors"
+                        style={{ color: 'var(--text-primary)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        {isArchived(contextMenu.partnerId) ? (
+                            <>
+                                <ArchiveRestore className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />
+                                Unarchive
+                            </>
+                        ) : (
+                            <>
+                                <Archive className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />
+                                Archive
+                            </>
+                        )}
+                    </button>
+                </div>
+            )}
 
             <div className="p-2 flex items-center gap-2"
                  style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-sidebar)' }}>

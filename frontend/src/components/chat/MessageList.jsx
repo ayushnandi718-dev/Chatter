@@ -3,6 +3,7 @@ import { useChatStore, MessageStatus } from "../../store/useChatStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCryptoStore } from "../../store/useCryptoStore";
 import { MediaModal } from "./MediaModal";
+import { ImageViewer } from "./ImageViewer";
 import { Loader2, Download, Check, CheckCheck, AlertCircle, Reply, Copy, Trash2, RotateCcw, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import { axiosInstance } from "../../lib/axios";
@@ -280,7 +281,13 @@ export function MessageList({ onReply }) {
     const [modalMedia, setModalMedia] = useState({ url: null, isVideo: false });
     const [contextMenu, setContextMenu] = useState(null);
     const [reactionPickerMsgId, setReactionPickerMsgId] = useState(null);
+    const [viewerOpen, setViewerOpen] = useState(false);
+    const [viewerIndex, setViewerIndex] = useState(0);
     const messagesEndRef = useRef(null);
+
+    const allImageUrls = messages
+        .map((m) => m.image)
+        .filter(Boolean);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -428,7 +435,11 @@ export function MessageList({ onReply }) {
 
                                         {msg.image && (
                                             <div className="cursor-pointer overflow-hidden rounded-lg mb-1.5"
-                                                 onClick={() => setModalMedia({ url: msg.image, isVideo: false })}>
+                                                 onClick={() => {
+                                                     const idx = allImageUrls.indexOf(msg.image);
+                                                     setViewerIndex(idx >= 0 ? idx : 0);
+                                                     setViewerOpen(true);
+                                                 }}>
                                                 <img src={msg.image} alt="" className="max-h-52 w-full object-cover rounded-lg" loading="lazy" />
                                             </div>
                                         )}
@@ -447,27 +458,60 @@ export function MessageList({ onReply }) {
                                         )}
 
                                         {msg.file && (
-                                            <a href={msg.file} target="_blank" rel="noopener noreferrer"
-                                               className="flex items-center gap-2.5 rounded-lg px-3 py-2 mb-1.5 no-underline transition-colors"
-                                               style={{
-                                                   background: isOutgoing ? "rgba(255,255,255,0.12)" : "var(--bg-elevated)",
-                                                   border: "1px solid " + (isOutgoing ? "rgba(255,255,255,0.08)" : "var(--border)"),
-                                               }}>
-                                                <span className="text-lg">{getFileIcon(msg.fileType)}</span>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[11px] font-medium truncate"
-                                                       style={{ color: isOutgoing ? "white" : "var(--text-primary)" }}>
-                                                        {msg.fileName || "File"}
-                                                    </p>
-                                                    {msg.fileSize > 0 && (
-                                                        <p className="text-[9px]"
-                                                           style={{ color: isOutgoing ? "rgba(255,255,255,0.5)" : "var(--text-muted)" }}>
-                                                            {formatFileSize(msg.fileSize)}
+                                            msg.fileType?.startsWith("image/") ? (
+                                                <button
+                                                    onClick={() => {
+                                                        setViewerIndex(0);
+                                                        setViewerOpen(true);
+                                                    }}
+                                                    className="flex items-center gap-2.5 rounded-lg px-3 py-2 mb-1.5 transition-colors text-left w-full"
+                                                    style={{
+                                                        background: isOutgoing ? "rgba(255,255,255,0.12)" : "var(--bg-elevated)",
+                                                        border: "1px solid " + (isOutgoing ? "rgba(255,255,255,0.08)" : "var(--border)"),
+                                                    }}>
+                                                    <span className="text-lg">{getFileIcon(msg.fileType)}</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-medium truncate"
+                                                           style={{ color: isOutgoing ? "white" : "var(--text-primary)" }}>
+                                                            {msg.fileName || "File"}
                                                         </p>
-                                                    )}
-                                                </div>
-                                                <Download className="h-3.5 w-3.5 shrink-0" style={{ color: isOutgoing ? "rgba(255,255,255,0.5)" : "var(--text-muted)" }} />
-                                            </a>
+                                                        {msg.fileSize > 0 && (
+                                                            <p className="text-[9px]"
+                                                               style={{ color: isOutgoing ? "rgba(255,255,255,0.5)" : "var(--text-muted)" }}>
+                                                                {formatFileSize(msg.fileSize)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <Download className="h-3.5 w-3.5 shrink-0" style={{ color: isOutgoing ? "rgba(255,255,255,0.5)" : "var(--text-muted)" }} />
+                                                </button>
+                                            ) : (
+                                                <a
+                                                    href={msg.file}
+                                                    download={msg.fileName || "file"}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="flex items-center gap-2.5 rounded-lg px-3 py-2 mb-1.5 transition-colors text-left w-full"
+                                                    style={{
+                                                        background: isOutgoing ? "rgba(255,255,255,0.12)" : "var(--bg-elevated)",
+                                                        border: "1px solid " + (isOutgoing ? "rgba(255,255,255,0.08)" : "var(--border)"),
+                                                    }}>
+                                                    <span className="text-lg">{getFileIcon(msg.fileType)}</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-medium truncate"
+                                                           style={{ color: isOutgoing ? "white" : "var(--text-primary)" }}>
+                                                            {msg.fileName || "File"}
+                                                        </p>
+                                                        {msg.fileSize > 0 && (
+                                                            <p className="text-[9px]"
+                                                               style={{ color: isOutgoing ? "rgba(255,255,255,0.5)" : "var(--text-muted)" }}>
+                                                                {formatFileSize(msg.fileSize)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <Download className="h-3.5 w-3.5 shrink-0" style={{ color: isOutgoing ? "rgba(255,255,255,0.5)" : "var(--text-muted)" }} />
+                                                </a>
+                                            )
                                         )}
 
                                         {msg.text && (
@@ -512,8 +556,15 @@ export function MessageList({ onReply }) {
             <MediaModal
                 mediaUrl={modalMedia.url}
                 isVideo={modalMedia.isVideo}
-                isOpen={Boolean(modalMedia.url)}
+                isOpen={Boolean(modalMedia.url && modalMedia.isVideo)}
                 onClose={() => setModalMedia({ url: null, isVideo: false })}
+            />
+
+            <ImageViewer
+                images={allImageUrls}
+                initialIndex={viewerIndex}
+                isOpen={viewerOpen}
+                onClose={() => setViewerOpen(false)}
             />
 
             {contextMenu && (

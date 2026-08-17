@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useChatStore } from "../../store/useChatStore";
 import { useSoundStore } from "../../store/useSoundStore";
 import { useCryptoStore } from "../../store/useCryptoStore";
 import { CryptoState } from "../../lib/crypto-states";
-import { Send, Image, X, Loader2, Video, Plus, Mic, FileText, StopCircle, AlertTriangle } from "lucide-react";
+import { Send, Image, X, Loader2, Video, Plus, Mic, FileText, StopCircle, AlertTriangle, Smile } from "lucide-react";
+import { EmojiPicker } from "./EmojiPicker";
 import toast from "react-hot-toast";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -26,9 +27,11 @@ export function ChatComposer() {
     const [filePreview, setFilePreview] = useState(null);
     const [fileInfo, setFileInfo] = useState({ name: "", type: "", size: 0 });
     const [showAttachMenu, setShowAttachMenu] = useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [recordDuration, setRecordDuration] = useState(0);
     const [recordedBlob, setRecordedBlob] = useState(null);
+    const [isDragOver, setIsDragOver] = useState(false);
 
     const fileInputRef = useRef(null);
     const audioInputRef = useRef(null);
@@ -245,6 +248,44 @@ export function ChatComposer() {
         }
     };
 
+    const isDesktop = typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+    const handleDragOver = useCallback((e) => {
+        if (!isDesktop) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(true);
+    }, [isDesktop]);
+
+    const handleDragLeave = useCallback((e) => {
+        if (!isDesktop) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.currentTarget === e.target) {
+            setIsDragOver(false);
+        }
+    }, [isDesktop]);
+
+    const handleDrop = useCallback((e) => {
+        if (!isDesktop) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+        const file = e.dataTransfer?.files?.[0];
+        if (!file) return;
+        if (file.size > MAX_FILE_SIZE) {
+            toast.error("File size must be under 25MB");
+            return;
+        }
+        setSelectedFile(file);
+        setFileInfo({ name: file.name, type: file.type, size: file.size });
+        if (file.type.startsWith("image/")) {
+            setFilePreview(URL.createObjectURL(file));
+        } else {
+            setFilePreview(null);
+        }
+    }, [isDesktop]);
+
     const hasContent = text.trim() || selectedFile || recordedBlob;
 
     const getFileIcon = (type) => {
@@ -254,7 +295,23 @@ export function ChatComposer() {
     };
 
     return (
-        <div className="px-3 pb-3 pt-1 safe-area-bottom relative" style={{ background: 'var(--bg-chat)' }}>
+        <div className="px-3 pb-3 pt-1 safe-area-bottom relative"
+             style={{ background: 'var(--bg-chat)' }}
+             onDragOver={handleDragOver}
+             onDragLeave={handleDragLeave}
+             onDrop={handleDrop}>
+
+            {isDragOver && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg"
+                     style={{
+                         background: 'rgba(0,0,0,0.5)',
+                         border: '2px dashed var(--accent)',
+                     }}>
+                    <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                        Drop files to send
+                    </span>
+                </div>
+            )}
             {/* Recording indicator */}
             {isRecording && (
                 <div className="mb-2 flex items-center gap-2.5 rounded-lg px-3 py-2.5"
@@ -338,6 +395,19 @@ export function ChatComposer() {
                 <input type="file" ref={audioInputRef} onChange={handleFileChange} className="hidden"
                        accept="audio/*" />
 
+                {/* Emoji picker */}
+                {showEmojiPicker && (
+                    <div className="absolute bottom-full mb-2 left-12 z-50">
+                        <EmojiPicker
+                            onSelect={(emoji) => {
+                                setText((prev) => prev + emoji);
+                                textareaRef.current?.focus();
+                            }}
+                            onClose={() => setShowEmojiPicker(false)}
+                        />
+                    </div>
+                )}
+
                 {/* Attach button */}
                 <div className="relative">
                     <button type="button"
@@ -397,6 +467,14 @@ export function ChatComposer() {
                               onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
                               maxLength={4000} />
                 </div>
+
+                <button type="button"
+                        onClick={() => setShowEmojiPicker((v) => !v)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+                        style={{ color: showEmojiPicker ? 'var(--accent)' : 'var(--text-muted)', background: showEmojiPicker ? 'var(--accent-muted)' : 'transparent' }}
+                        title="Emoji">
+                    <Smile className="h-4 w-4" />
+                </button>
 
                 <button type="submit"
                         disabled={!hasContent || isSendingMedia}

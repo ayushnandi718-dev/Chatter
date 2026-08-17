@@ -7,6 +7,8 @@ import {
     deleteMessage,
     editMessage,
     addReaction,
+    pinMessage,
+    getPinnedMessages,
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/upload.middleware.js";
@@ -27,10 +29,12 @@ router.get("/unread-count", protectRoute, async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 });
+router.get("/pinned/:userId", protectRoute, getPinnedMessages);
 router.get("/:id", protectRoute, getMessages);
 router.post("/send/:id", protectRoute, upload.single("file"), sendMessage);
 router.post("/read/:id", protectRoute, markAsRead);
 router.post("/:id/reaction", protectRoute, addReaction);
+router.post("/:id/pin", protectRoute, pinMessage);
 router.patch("/:id", protectRoute, editMessage);
 router.delete("/:id", protectRoute, deleteMessage);
 

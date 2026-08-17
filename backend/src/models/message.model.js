@@ -101,6 +101,14 @@ const messageSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        isPinned: {
+            type: Boolean,
+            default: false,
+        },
+        pinnedAt: {
+            type: Date,
+            default: null,
+        },
     },
     { timestamps: true }
 );

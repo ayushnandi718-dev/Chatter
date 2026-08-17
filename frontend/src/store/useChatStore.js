@@ -3,6 +3,7 @@ import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
 import { useSoundStore } from "./useSoundStore";
 import { useCryptoStore } from "./useCryptoStore";
+import { usePreferencesStore } from "./usePreferencesStore";
 import toast from "react-hot-toast";
 
 export const MessageStatus = Object.freeze({
@@ -251,9 +252,35 @@ export const useChatStore = create((set, get) => ({
         }
     },
 
+    requestNotificationPermission: () => {
+        if (!("Notification" in window)) return;
+        if (Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+    },
+
+    showBrowserNotification: (senderName, messageText, profilePic) => {
+        if (!("Notification" in window)) return;
+        if (Notification.permission !== "granted") return;
+
+        const prefStore = usePreferencesStore.getState();
+        if (!prefStore.userPrefs.messageSounds) return;
+
+        try {
+            new Notification(senderName, {
+                body: messageText || "Sent a media file",
+                icon: profilePic || "/favicon.svg",
+            });
+        } catch {
+            // notification blocked
+        }
+    },
+
     subscribeToMessages: () => {
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
+
+        get().requestNotificationPermission();
 
         socket.off("newMessage");
         socket.off("typing");
@@ -300,6 +327,16 @@ export const useChatStore = create((set, get) => ({
 
             useSoundStore.getState().playReceiveSound();
             get().getConversations();
+
+            if (!isFromActiveChat) {
+                const conversations = get().conversations;
+                const conv = conversations.find(
+                    (c) => c.partner?._id === newMessage.senderId
+                );
+                const senderName = conv?.partner?.displayName || conv?.partner?.username || "New Message";
+                const profilePic = conv?.partner?.profilePic;
+                get().showBrowserNotification(senderName, newMessage.text, profilePic);
+            }
         });
 
         socket.on("typing", ({ from }) => {

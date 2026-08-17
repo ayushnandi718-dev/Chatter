@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import Friendship from "../models/friendship.model.js";
 import Block from "../models/block.model.js";
+import ConversationPreferences from "../models/conversationPreferences.model.js";
 import { uploadChatMedia } from "../lib/imagekit.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
@@ -61,6 +62,12 @@ export async function getConversationsForSidebar(req, res) {
             partnerMap[p._id.toString()] = p;
         }
 
+        const convPrefsDocs = await ConversationPreferences.find({ userId: loggedInUserId });
+        const convPrefsMap = {};
+        for (const cp of convPrefsDocs) {
+            convPrefsMap[cp.partnerId.toString()] = cp;
+        }
+
         const seen = new Set();
         const conversations = [];
 
@@ -76,6 +83,8 @@ export async function getConversationsForSidebar(req, res) {
 
             const partner = partnerMap[partnerId];
             if (!partner) continue;
+
+            const convPrefs = convPrefsMap[partnerId] || null;
 
             conversations.push({
                 _id: partnerId,
@@ -100,8 +109,22 @@ export async function getConversationsForSidebar(req, res) {
                     createdAt: msg.createdAt,
                 },
                 partner,
+                conversationPreferences: convPrefs
+                    ? {
+                          muted: convPrefs.muted,
+                          mutedUntil: convPrefs.mutedUntil,
+                          pinned: convPrefs.pinned,
+                          archived: convPrefs.archived,
+                      }
+                    : { muted: false, mutedUntil: null, pinned: false, archived: false },
             });
         }
+
+        conversations.sort((a, b) => {
+            if (a.conversationPreferences.pinned && !b.conversationPreferences.pinned) return -1;
+            if (!a.conversationPreferences.pinned && b.conversationPreferences.pinned) return 1;
+            return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt);
+        });
 
         res.status(200).json(conversations);
     } catch (error) {
@@ -419,6 +442,74 @@ export async function addReaction(req, res) {
         res.status(200).json({ reactions: message.reactions });
     } catch (error) {
         console.error("Error in addReaction:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function pinMessage(req, res) {
+    try {
+        const { id: messageId } = req.params;
+        const myId = req.user._id;
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        const partnerId =
+            message.senderId.toString() === myId.toString()
+                ? message.receiverId.toString()
+                : message.senderId.toString();
+
+        const friends = await areFriends(myId, partnerId);
+        if (!friends) {
+            return res.status(403).json({ message: "You must be friends to pin messages" });
+        }
+
+        message.isPinned = !message.isPinned;
+        message.pinnedAt = message.isPinned ? new Date() : null;
+        await message.save();
+
+        const receiverSocketId = getReceiverSocketId(partnerId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("messagePinned", {
+                messageId: message._id,
+                isPinned: message.isPinned,
+                pinnedAt: message.pinnedAt,
+            });
+        }
+
+        res.status(200).json({
+            isPinned: message.isPinned,
+            pinnedAt: message.pinnedAt,
+        });
+    } catch (error) {
+        console.error("Error in pinMessage:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function getPinnedMessages(req, res) {
+    try {
+        const { userId: partnerId } = req.params;
+        const myId = req.user._id;
+
+        const friends = await areFriends(myId, partnerId);
+        if (!friends) {
+            return res.status(403).json({ message: "You must be friends to view pinned messages" });
+        }
+
+        const messages = await Message.find({
+            isPinned: true,
+            $or: [
+                { senderId: myId, receiverId: partnerId },
+                { senderId: partnerId, receiverId: myId },
+            ],
+        }).sort({ pinnedAt: -1 });
+
+        res.status(200).json(messages);
+    } catch (error) {
+        console.error("Error in getPinnedMessages:", error.message);
         res.status(500).json({ message: "Internal server error" });
     }
 }
