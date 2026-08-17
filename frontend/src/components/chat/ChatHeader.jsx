@@ -45,9 +45,9 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch }) {
              style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-chat)' }}>
             <div className="flex items-center gap-2.5">
                 <button onClick={() => setSelectedUser(null)}
-                        className="md:hidden flex h-7 w-7 items-center justify-center rounded-md"
+                        className="md:hidden flex h-9 w-9 items-center justify-center rounded-lg"
                         style={{ color: 'var(--text-secondary)' }}>
-                    <ArrowLeft className="h-4 w-4" />
+                    <ArrowLeft className="h-4.5 w-4.5" />
                 </button>
 
                 <div className="relative">
@@ -82,29 +82,29 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch }) {
                 </div>
             </div>
 
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1">
                 <button onClick={toggleSound}
-                        className="flex h-7 w-7 items-center justify-center rounded-md transition-colors"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
                         style={{
                             color: isSoundEnabled ? 'var(--accent)' : 'var(--text-muted)',
                             background: isSoundEnabled ? 'var(--accent-muted)' : 'transparent',
                         }}
                         title={isSoundEnabled ? "Sound on" : "Sound off"}>
-                    {isSoundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+                    {isSoundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                 </button>
 
                 <button onClick={onOpenWallpapers}
-                        className="flex h-7 w-7 items-center justify-center rounded-md transition-colors"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
                         style={{ color: 'var(--text-muted)' }}
                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         title="Wallpaper">
-                    <ImageIcon className="h-3.5 w-3.5" />
+                    <ImageIcon className="h-4 w-4" />
                 </button>
 
                 <div className="relative" ref={menuRef}>
                     <button onClick={() => setShowMenu(!showMenu)}
-                            className="flex h-7 w-7 items-center justify-center rounded-md transition-colors"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
                             style={{ color: 'var(--text-muted)' }}
                             onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>

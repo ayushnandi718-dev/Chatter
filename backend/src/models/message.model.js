@@ -32,6 +32,10 @@ const messageSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        clientMessageId: {
+            type: String,
+            default: "",
+        },
         image: {
             type: String,
             default: null,

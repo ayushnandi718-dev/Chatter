@@ -18,6 +18,12 @@ import blockRoutes from "./routes/block.route.js";
 
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const isDev = process.env.NODE_ENV !== "production";
+
+const origins = [FRONTEND_URL];
+if (isDev) {
+    origins.push("http://localhost:5173", "http://localhost:3000", "http://localhost:3001");
+}
 
 const publicDir = path.join(process.cwd(), "public");
 
@@ -26,7 +32,7 @@ app.use("/api/webhooks/clerk", express.raw({ type: "application/json" }), clerkW
 app.use(express.json());
 app.use(
     cors({
-        origin: [FRONTEND_URL, "http://localhost:5173", "http://localhost:3000", "http://localhost:3001"],
+        origin: origins,
         credentials: true,
     })
 );

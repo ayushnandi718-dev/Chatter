@@ -26,6 +26,8 @@
     --success: #22c55e;
     --warning: #f59e0b;
     --danger: #ef4444;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   body {
@@ -37,6 +39,9 @@
     color: var(--text-primary);
     -webkit-user-select: none;
     user-select: none;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   ::-webkit-scrollbar {
@@ -60,5 +65,18 @@
   input, textarea {
     -webkit-user-select: text;
     user-select: text;
+    touch-action: manipulation;
   }
+
+  button {
+    touch-action: manipulation;
+  }
+}
+
+.safe-area-top {
+  padding-top: var(--safe-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: var(--safe-bottom);
 }

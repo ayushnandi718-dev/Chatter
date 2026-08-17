@@ -78,6 +78,7 @@ export async function getConversationsForSidebar(req, res) {
                     iv: msg.iv,
                     sequenceNumber: msg.sequenceNumber,
                     protocolVersion: msg.protocolVersion,
+                    clientMessageId: msg.clientMessageId,
                     image: msg.image,
                     video: msg.video,
                     readAt: msg.readAt,
@@ -125,7 +126,7 @@ export async function getMessages(req, res) {
 
 export async function sendMessage(req, res) {
     try {
-        const { text, encryptedText, iv, sequenceNumber, protocolVersion } = req.body;
+        const { text, encryptedText, iv, sequenceNumber, protocolVersion, clientMessageId } = req.body;
         const { id: receiverId } = req.params;
         const senderId = req.user._id;
 
@@ -172,6 +173,7 @@ export async function sendMessage(req, res) {
             messageData.text = "";
             messageData.sequenceNumber = parseInt(sequenceNumber) || 0;
             messageData.protocolVersion = parseInt(protocolVersion) || 1;
+            messageData.clientMessageId = clientMessageId || "";
         } else {
             messageData.text = text || "";
         }

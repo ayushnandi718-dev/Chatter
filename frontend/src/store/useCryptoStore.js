@@ -195,7 +195,7 @@ export const useCryptoStore = create((set, get) => ({
         const aad = createAAD({
             protocolVersion: message.protocolVersion || PROTOCOL_VERSION,
             conversationId,
-            messageId: message._id,
+            messageId: message.clientMessageId || message._id,
             senderId: message.senderId,
             recipientId: message.receiverId,
             sequenceNumber: message.sequenceNumber || 0,

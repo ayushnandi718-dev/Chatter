@@ -1,15 +1,22 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
+import User from "../models/user.model.js";
 
 const app = express();
 const server = http.createServer(app);
 
 const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
+const isDev = process.env.NODE_ENV !== "production";
+
+const origins = [allowedOrigin];
+if (isDev) {
+    origins.push("http://localhost:5173", "http://localhost:3000", "http://localhost:3001");
+}
 
 const io = new Server(server, {
     cors: {
-        origin: [allowedOrigin, "http://localhost:5173", "http://localhost:3000", "http://localhost:3001"],
+        origin: origins,
         credentials: true,
     },
 });
@@ -27,11 +34,20 @@ export function emitToUser(userId, event, data) {
     }
 }
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
     const userId = socket.handshake.query.userId;
-    if (userId && userId !== "undefined") {
-        userSocketMap[userId] = socket.id;
+    if (!userId || userId === "undefined") {
+        socket.disconnect();
+        return;
     }
+
+    const validUser = await User.findById(userId).select("_id").lean();
+    if (!validUser) {
+        socket.disconnect();
+        return;
+    }
+
+    userSocketMap[userId] = socket.id;
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 

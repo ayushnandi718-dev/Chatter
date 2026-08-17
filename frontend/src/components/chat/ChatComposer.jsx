@@ -92,7 +92,7 @@ export function ChatComposer() {
     };
 
     return (
-        <div className="px-3 pb-3 pt-1" style={{ background: 'var(--bg-chat)' }}>
+        <div className="px-3 pb-3 pt-1 safe-area-bottom" style={{ background: 'var(--bg-chat)' }}>
             {filePreview && (
                 <div className="mb-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2"
                      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>

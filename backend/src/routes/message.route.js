@@ -12,12 +12,17 @@ const router = express.Router();
 
 router.get("/conversations", protectRoute, getConversationsForSidebar);
 router.get("/unread-count", protectRoute, async (req, res) => {
-    const Message = (await import("../models/message.model.js")).default;
-    const count = await Message.countDocuments({
-        receiverId: req.user._id,
-        readAt: null,
-    });
-    res.status(200).json({ count });
+    try {
+        const Message = (await import("../models/message.model.js")).default;
+        const count = await Message.countDocuments({
+            receiverId: req.user._id,
+            readAt: null,
+        });
+        res.status(200).json({ count });
+    } catch (error) {
+        console.error("Error in unread-count:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
 });
 router.get("/:id", protectRoute, getMessages);
 router.post("/send/:id", protectRoute, upload.single("file"), sendMessage);

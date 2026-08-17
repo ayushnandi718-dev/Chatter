@@ -119,6 +119,7 @@ export const useChatStore = create((set, get) => ({
                             iv: encrypted.iv,
                             sequenceNumber: encrypted.sequenceNumber,
                             protocolVersion: encrypted.protocolVersion,
+                            clientMessageId: encrypted.messageId,
                         };
                     } else {
                         toast.error("Encryption failed. Message not sent.");
@@ -179,7 +180,6 @@ export const useChatStore = create((set, get) => ({
                 (newMessage.senderId === selectedUser._id || newMessage.receiverId === selectedUser._id);
 
             if (newMessage.encryptedText && newMessage.iv) {
-                const { useCryptoStore } = await import("./useCryptoStore");
                 const decrypted = await useCryptoStore.getState().decryptIncoming(newMessage);
                 newMessage.text = decrypted ?? "🔒 Could not decrypt";
             }

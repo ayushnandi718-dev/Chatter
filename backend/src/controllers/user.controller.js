@@ -10,7 +10,8 @@ export async function searchUsers(req, res) {
             return res.status(200).json([]);
         }
 
-        const regex = new RegExp(q.trim(), "i");
+        const sanitized = q.trim().slice(0, 50).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = new RegExp(sanitized, "i");
 
         const users = await User.find({
             _id: { $ne: currentUserId },
@@ -114,7 +115,7 @@ export async function setUsername(req, res) {
             currentUserId,
             { username: sanitized },
             { new: true }
-        ).select("username displayName profilePic about email clerkId fullName");
+        ).select("username displayName profilePic about");
 
         res.status(200).json(updated);
     } catch (error) {
@@ -134,11 +135,13 @@ export async function updateDisplayName(req, res) {
             return res.status(400).json({ message: "Display name must be 1-50 characters" });
         }
 
+        const sanitized = displayName.trim().replace(/[<>]/g, "");
+
         const updated = await User.findByIdAndUpdate(
             req.user._id,
-            { displayName: displayName.trim() },
+            { displayName: sanitized },
             { new: true }
-        ).select("username displayName profilePic about email clerkId fullName");
+        ).select("username displayName profilePic about");
 
         res.status(200).json(updated);
     } catch (error) {
@@ -159,7 +162,7 @@ export async function updateAbout(req, res) {
             req.user._id,
             { about: about || "" },
             { new: true }
-        ).select("username displayName profilePic about email clerkId fullName");
+        ).select("username displayName profilePic about");
 
         res.status(200).json(updated);
     } catch (error) {
