@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: chatter
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: |
+      cd frontend && npm install && npm run build && cd ..
+      cd backend && npm install && npm run build
+    startCommand: cd backend && node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_WEBHOOK_SIGNING_SECRET
+        sync: false
+      - key: IMAGEKIT_PUBLIC_KEY
+        sync: false
+      - key: IMAGEKIT_PRIVATE_KEY
+        sync: false
+      - key: IMAGEKIT_URL_ENDPOINT
+        sync: false
+      - key: FRONTEND_URL
+        value: https://chatter-lrig.onrender.com
+      - key: PORT
+        value: 3000
