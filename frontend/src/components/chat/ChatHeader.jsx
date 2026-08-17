@@ -144,6 +144,17 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch }) {
                         <div className="absolute right-0 mt-1 w-48 rounded-lg py-1 z-50"
                              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
 
+                            <button onClick={() => { onOpenWallpapers(); setShowMenu(false); }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-[11px] font-medium transition-colors"
+                                    style={{ color: 'var(--text-primary)' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <ImageIcon className="h-3 w-3" style={{ color: 'var(--accent)' }} />
+                                Wallpaper
+                            </button>
+
+                            <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+
                             {!isBlocked ? (
                                 <>
                                     <button onClick={handleBlock}

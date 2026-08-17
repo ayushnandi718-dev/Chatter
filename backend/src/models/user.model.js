@@ -62,7 +62,6 @@ const userSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-userSchema.index({ username: 1 });
 userSchema.index({ displayName: "text", username: "text" });
 
 const User = mongoose.model("User", userSchema);

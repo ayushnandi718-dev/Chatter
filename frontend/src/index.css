@@ -80,3 +80,26 @@
 .safe-area-bottom {
   padding-bottom: var(--safe-bottom);
 }
+
+.chat-wallpaper-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: var(--bg-chat);
+}
+
+.chat-wallpaper-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-wallpaper-layer,
+  .chat-wallpaper-overlay {
+    transition: none !important;
+  }
+}

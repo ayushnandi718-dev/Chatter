@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useAuth } from "@clerk/react";
 import { useAuthStore } from "./store/useAuthStore";
 import { ThemeProvider } from "./context/ThemeContext";
-import { WallpaperProvider } from "./context/WallpaperContext";
 import AuthPage from "./pages/AuthPage";
 import ChatPage from "./pages/ChatPage";
 import PageLoader from "./components/PageLoader";
@@ -51,9 +50,7 @@ function AppContent() {
 export default function App() {
     return (
         <ThemeProvider>
-            <WallpaperProvider>
-                <AppContent />
-            </WallpaperProvider>
+            <AppContent />
         </ThemeProvider>
     );
 }

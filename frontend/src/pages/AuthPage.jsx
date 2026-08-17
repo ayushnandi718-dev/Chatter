@@ -1,15 +1,13 @@
 import { SignInButton, SignUpButton } from "@clerk/react";
 import { MessageSquare, Shield, Image, Sparkles, Volume2, Palette } from "lucide-react";
-import { useWallpaper } from "../context/WallpaperContext";
 import { useTheme } from "../context/ThemeContext";
 
 export default function AuthPage() {
-    const { frameStyle } = useWallpaper();
     const { theme, setTheme, themes } = useTheme();
 
     return (
         <div className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6 transition-all duration-300"
-             style={frameStyle}>
+             style={{ background: 'var(--bg-app)' }}>
             <div className="w-full max-w-4xl overflow-hidden rounded-3xl"
                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
                 <div className="flex items-center justify-between px-6 py-4"
