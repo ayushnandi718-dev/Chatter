@@ -103,3 +103,13 @@
     transition: none !important;
   }
 }
+
+@keyframes pin-highlight {
+  0%   { box-shadow: 0 0 0 0 var(--accent); background-color: var(--accent-muted); }
+  50%  { box-shadow: 0 0 0 6px transparent; background-color: var(--accent-muted); }
+  100% { box-shadow: 0 0 0 0 transparent; background-color: transparent; }
+}
+
+.msg-highlight {
+  animation: pin-highlight 1.2s ease-out;
+}

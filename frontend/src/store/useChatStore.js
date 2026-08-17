@@ -24,14 +24,29 @@ export const useChatStore = create((set, get) => ({
     searchQuery: "",
     typingUsers: [],
     decryptedPreviews: {},
-    pinnedMessageIds: [],
+    pinnedMessages: [],
+
+    fetchPinnedMessages: async (userId) => {
+        try {
+            const res = await axiosInstance.get(`/messages/pinned/${userId}`);
+            const messages = res.data;
+
+            const cryptoStore = useCryptoStore.getState();
+            const decrypted = await cryptoStore.decryptMessages(messages);
+
+            set({ pinnedMessages: decrypted });
+        } catch {
+            set({ pinnedMessages: [] });
+        }
+    },
 
     setSearchQuery: (query) => set({ searchQuery: query }),
 
     setSelectedUser: (selectedUser) => {
-        set({ selectedUser, messages: [] });
+        set({ selectedUser, messages: [], pinnedMessages: [] });
         if (selectedUser) {
             get().getMessages(selectedUser._id);
+            get().fetchPinnedMessages(selectedUser._id);
         }
     },
 
@@ -294,6 +309,7 @@ export const useChatStore = create((set, get) => ({
         socket.off("messageDeleted");
         socket.off("messageEdited");
         socket.off("messageReaction");
+        socket.off("messagePinned");
 
         socket.on("newMessage", async (newMessage) => {
             const { selectedUser } = get();
@@ -426,6 +442,19 @@ export const useChatStore = create((set, get) => ({
                 ),
             }));
         });
+
+        socket.on("messagePinned", ({ messageId, isPinned, pinnedAt }) => {
+            set((state) => {
+                const updatedMessages = state.messages.map((m) =>
+                    m._id === messageId ? { ...m, isPinned, pinnedAt } : m
+                );
+                const updatedPinned = isPinned
+                    ? [...state.pinnedMessages.filter((m) => m._id !== messageId),
+                       updatedMessages.find((m) => m._id === messageId)].filter(Boolean)
+                    : state.pinnedMessages.filter((m) => m._id !== messageId);
+                return { messages: updatedMessages, pinnedMessages: updatedPinned };
+            });
+        });
     },
 
     unsubscribeFromMessages: () => {
@@ -439,6 +468,7 @@ export const useChatStore = create((set, get) => ({
         socket.off("messageDeleted");
         socket.off("messageEdited");
         socket.off("messageReaction");
+        socket.off("messagePinned");
     },
 
     sendTyping: (toUserId) => {

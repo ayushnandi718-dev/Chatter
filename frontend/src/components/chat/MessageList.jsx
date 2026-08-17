@@ -446,7 +446,19 @@ export function MessageList({ onReply }) {
     const handlePin = useCallback(async (messageId) => {
         try {
             const res = await axiosInstance.post(`/messages/${messageId}/pin`);
-            toast.success(res.data.isPinned ? "Message pinned" : "Message unpinned");
+            const { isPinned, pinnedAt } = res.data;
+            toast.success(isPinned ? "Message pinned" : "Message unpinned");
+
+            useChatStore.setState((state) => {
+                const updatedMessages = state.messages.map((m) =>
+                    m._id === messageId ? { ...m, isPinned, pinnedAt } : m
+                );
+                const updatedPinned = isPinned
+                    ? [...state.pinnedMessages.filter((m) => m._id !== messageId),
+                       updatedMessages.find((m) => m._id === messageId)].filter(Boolean)
+                    : state.pinnedMessages.filter((m) => m._id !== messageId);
+                return { messages: updatedMessages, pinnedMessages: updatedPinned };
+            });
         } catch {
             toast.error("Failed to pin message");
         }
@@ -486,7 +498,7 @@ export function MessageList({ onReply }) {
                 const isDeleted = msg.isDeletedForEveryone;
 
                 return (
-                    <div key={msg._id}>
+                    <div key={msg._id} id={`msg-${msg._id}`}>
                         {showDate && (
                             <div className="flex items-center justify-center py-3">
                                 <span className="text-[10px] font-medium px-2.5 py-1 rounded-full"

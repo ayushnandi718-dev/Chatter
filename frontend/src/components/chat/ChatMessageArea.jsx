@@ -1,6 +1,7 @@
 import { useChatStore } from "../../store/useChatStore";
 import { useWallpaperStore } from "../../store/useWallpaperStore";
 import { MessageList } from "./MessageList";
+import { PinnedMessageBar } from "./PinnedMessageBar";
 
 export function ChatMessageArea() {
     const selectedUser = useChatStore((state) => state.selectedUser);
@@ -27,6 +28,7 @@ export function ChatMessageArea() {
                 style={{ opacity: overlayOpacity }}
             />
             <div className="relative z-[1] flex-1 flex flex-col min-h-0 overflow-hidden">
+                <PinnedMessageBar />
                 <MessageList />
             </div>
         </div>
