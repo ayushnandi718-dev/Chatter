@@ -2,6 +2,7 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import User from "../models/user.model.js";
+import Message from "../models/message.model.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -77,11 +78,31 @@ io.on("connection", async (socket) => {
         }
     });
 
-    socket.on("messageDelivered", ({ to, messageId }) => {
-        if (!to || typeof to !== "string" || !messageId) return;
-        const receiverSocketId = userSocketMap[to];
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("messageDelivered", { messageId, by: userId });
+    socket.on("messageDelivered", async ({ to, messageId }) => {
+        if (!to || typeof to !== "string" || !messageId || typeof messageId !== "string") return;
+
+        try {
+            const msg = await Message.findOne({
+                _id: messageId,
+                senderId: to,
+                receiverId: userId,
+            }).select("_id deliveredAt").lean();
+
+            if (!msg) return;
+
+            if (!msg.deliveredAt) {
+                await Message.updateOne(
+                    { _id: messageId },
+                    { $set: { deliveredAt: new Date() } }
+                );
+            }
+
+            const receiverSocketId = userSocketMap[to];
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("messageDelivered", { messageId, by: userId });
+            }
+        } catch {
+            // invalid messageId format or db error — ignore silently
         }
     });
 

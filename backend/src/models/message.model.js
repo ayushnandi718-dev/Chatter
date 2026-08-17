@@ -97,6 +97,10 @@ const messageSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        deliveredAt: {
+            type: Date,
+            default: null,
+        },
         readAt: {
             type: Date,
             default: null,

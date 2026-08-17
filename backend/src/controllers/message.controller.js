@@ -3,6 +3,7 @@ import Message from "../models/message.model.js";
 import Friendship from "../models/friendship.model.js";
 import Block from "../models/block.model.js";
 import ConversationPreferences from "../models/conversationPreferences.model.js";
+import UserPreferences from "../models/userPreferences.model.js";
 import { uploadChatMedia } from "../lib/imagekit.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
@@ -105,6 +106,7 @@ export async function getConversationsForSidebar(req, res) {
                     fileName: msg.fileName,
                     fileType: msg.fileType,
                     isDeletedForEveryone: msg.isDeletedForEveryone,
+                    deliveredAt: msg.deliveredAt,
                     readAt: msg.readAt,
                     createdAt: msg.createdAt,
                 },
@@ -297,6 +299,14 @@ export async function markAsRead(req, res) {
             { senderId: userId, receiverId: myId, readAt: null },
             { readAt: new Date() }
         );
+
+        const prefs = await UserPreferences.findOne({ userId: myId })
+            .select("readReceipts")
+            .lean();
+
+        if (prefs && prefs.readReceipts === false) {
+            return res.status(200).json({ ok: true });
+        }
 
         const senderSocketId = getReceiverSocketId(userId);
         if (senderSocketId) {

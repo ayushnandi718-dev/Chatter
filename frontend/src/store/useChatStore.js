@@ -82,7 +82,11 @@ export const useChatStore = create((set, get) => ({
 
             const withStatus = decryptedMessages.map((msg) => ({
                 ...msg,
-                _status: msg.readAt ? MessageStatus.READ : MessageStatus.DELIVERED,
+                _status: msg.readAt
+                    ? MessageStatus.READ
+                    : msg.deliveredAt
+                    ? MessageStatus.DELIVERED
+                    : MessageStatus.SENT,
             }));
 
             set({ messages: withStatus });
@@ -365,7 +369,7 @@ export const useChatStore = create((set, get) => ({
             set((state) => ({
                 messages: state.messages.map((msg) =>
                     msg._id === messageId && msg.senderId === by && msg._status === MessageStatus.SENT
-                        ? { ...msg, _status: MessageStatus.DELIVERED }
+                        ? { ...msg, _status: MessageStatus.DELIVERED, deliveredAt: new Date().toISOString() }
                         : msg
                 ),
             }));
