@@ -199,3 +199,73 @@ export async function getUserProfile(req, res) {
         res.status(500).json({ message: "Internal server error" });
     }
 }
+
+export async function uploadPublicKey(req, res) {
+    try {
+        const { publicKey, fingerprint } = req.body;
+
+        if (!publicKey || typeof publicKey !== "string") {
+            return res.status(400).json({ message: "Public key (JWK string) is required" });
+        }
+
+        let parsed;
+        try {
+            parsed = JSON.parse(publicKey);
+        } catch {
+            return res.status(400).json({ message: "Public key must be valid JSON (JWK format)" });
+        }
+
+        if (parsed.kty !== "EC" || parsed.crv !== "P-256") {
+            return res.status(400).json({ message: "Public key must be ECDH P-256 JWK" });
+        }
+
+        const user = await User.findById(req.user._id);
+        const previousFingerprint = user.identityKeyFingerprint;
+
+        const keyChanged = user.identityPublicKey && user.identityPublicKey !== publicKey;
+        const previousFingerprintValue = keyChanged ? previousFingerprint : null;
+
+        user.identityPublicKey = publicKey;
+        user.identityKeyFingerprint = fingerprint || "";
+        user.identityKeyVersion = (user.identityKeyVersion || 0) + 1;
+        user.identityKeyUpdatedAt = new Date();
+        await user.save();
+
+        res.status(200).json({
+            ok: true,
+            keyVersion: user.identityKeyVersion,
+            previousFingerprint: previousFingerprintValue,
+            currentFingerprint: user.identityKeyFingerprint,
+        });
+    } catch (error) {
+        console.error("Error in uploadPublicKey:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function getPublicKey(req, res) {
+    try {
+        const { userId } = req.params;
+
+        const user = await User.findById(userId).select(
+            "identityPublicKey identityKeyFingerprint identityKeyVersion identityKeyUpdatedAt username"
+        );
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (!user.identityPublicKey) {
+            return res.status(404).json({ message: "User has not set up encryption" });
+        }
+
+        res.status(200).json({
+            publicKey: user.identityPublicKey,
+            fingerprint: user.identityKeyFingerprint,
+            keyVersion: user.identityKeyVersion,
+            keyUpdatedAt: user.identityKeyUpdatedAt,
+        });
+    } catch (error) {
+        console.error("Error in getPublicKey:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}

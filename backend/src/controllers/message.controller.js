@@ -74,6 +74,10 @@ export async function getConversationsForSidebar(req, res) {
                     senderId: msg.senderId,
                     receiverId: msg.receiverId,
                     text: msg.text,
+                    encryptedText: msg.encryptedText,
+                    iv: msg.iv,
+                    sequenceNumber: msg.sequenceNumber,
+                    protocolVersion: msg.protocolVersion,
                     image: msg.image,
                     video: msg.video,
                     readAt: msg.readAt,
@@ -121,7 +125,7 @@ export async function getMessages(req, res) {
 
 export async function sendMessage(req, res) {
     try {
-        const { text } = req.body;
+        const { text, encryptedText, iv, sequenceNumber, protocolVersion } = req.body;
         const { id: receiverId } = req.params;
         const senderId = req.user._id;
 
@@ -147,17 +151,32 @@ export async function sendMessage(req, res) {
             }
         }
 
-        if (!text && !imageUrl && !videoUrl) {
+        const hasEncrypted = encryptedText && iv;
+        const hasLegacy = text;
+        const hasMedia = imageUrl || videoUrl;
+
+        if (!hasEncrypted && !hasLegacy && !hasMedia) {
             return res.status(400).json({ message: "Message must contain text or a media file" });
         }
 
-        const newMessage = await Message.create({
+        const messageData = {
             senderId,
             receiverId,
-            text: text || "",
             image: imageUrl,
             video: videoUrl,
-        });
+        };
+
+        if (hasEncrypted) {
+            messageData.encryptedText = encryptedText;
+            messageData.iv = iv;
+            messageData.text = "";
+            messageData.sequenceNumber = parseInt(sequenceNumber) || 0;
+            messageData.protocolVersion = parseInt(protocolVersion) || 1;
+        } else {
+            messageData.text = text || "";
+        }
+
+        const newMessage = await Message.create(messageData);
 
         const receiverSocketId = getReceiverSocketId(receiverId);
         if (receiverSocketId) {

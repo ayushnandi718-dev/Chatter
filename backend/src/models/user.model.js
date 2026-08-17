@@ -42,6 +42,22 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: "",
         },
+        identityPublicKey: {
+            type: String,
+            default: "",
+        },
+        identityKeyFingerprint: {
+            type: String,
+            default: "",
+        },
+        identityKeyVersion: {
+            type: Number,
+            default: 0,
+        },
+        identityKeyUpdatedAt: {
+            type: Date,
+            default: null,
+        },
     },
     { timestamps: true }
 );

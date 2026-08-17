@@ -16,6 +16,9 @@ export const useAuthStore = create((set, get) => ({
             const res = await axiosInstance.get("/auth/check");
             set({ authUser: res.data });
             get().connectSocket(res.data);
+
+            const { useCryptoStore } = await import("./useCryptoStore");
+            useCryptoStore.getState().ensureIdentityKey(res.data);
         } catch (error) {
             console.error("Auth check failed:", error.response?.data?.message || error.message);
             set({ authUser: null });
