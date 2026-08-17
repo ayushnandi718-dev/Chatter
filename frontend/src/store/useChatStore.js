@@ -285,6 +285,7 @@ export const useChatStore = create((set, get) => ({
         socket.off("newMessage");
         socket.off("typing");
         socket.off("stopTyping");
+        socket.off("messageDelivered");
         socket.off("messagesRead");
         socket.off("messageDeleted");
         socket.off("messageEdited");
@@ -299,10 +300,17 @@ export const useChatStore = create((set, get) => ({
 
             if (newMessage.encryptedText && newMessage.iv) {
                 const decrypted = await useCryptoStore.getState().decryptIncoming(newMessage);
-                newMessage.text = decrypted ?? "🔒 Could not decrypt";
+                newMessage.text = decrypted ?? "\ud83d\udd12 Could not decrypt";
             }
 
             newMessage._status = MessageStatus.DELIVERED;
+
+            if (newMessage.senderId !== authUser._id) {
+                socket.emit("messageDelivered", {
+                    to: newMessage.senderId,
+                    messageId: newMessage._id,
+                });
+            }
 
             set((state) => {
                 const clientMsgId = newMessage.clientMessageId;
@@ -353,6 +361,16 @@ export const useChatStore = create((set, get) => ({
             }));
         });
 
+        socket.on("messageDelivered", ({ messageId, by }) => {
+            set((state) => ({
+                messages: state.messages.map((msg) =>
+                    msg._id === messageId && msg.senderId === by && msg._status === MessageStatus.SENT
+                        ? { ...msg, _status: MessageStatus.DELIVERED }
+                        : msg
+                ),
+            }));
+        });
+
         socket.on("messagesRead", ({ by }) => {
             set((state) => ({
                 messages: state.messages.map((msg) =>
@@ -397,6 +415,7 @@ export const useChatStore = create((set, get) => ({
         socket.off("newMessage");
         socket.off("typing");
         socket.off("stopTyping");
+        socket.off("messageDelivered");
         socket.off("messagesRead");
         socket.off("messageDeleted");
         socket.off("messageEdited");

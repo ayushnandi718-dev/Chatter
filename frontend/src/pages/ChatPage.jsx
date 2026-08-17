@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useFriendStore } from "../store/useFriendStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { usePreferencesStore } from "../store/usePreferencesStore";
 import { ChatHeader } from "../components/chat/ChatHeader";
 import { ChatMessageArea } from "../components/chat/ChatMessageArea";
 import { ChatComposer } from "../components/chat/ChatComposer";
@@ -24,6 +25,7 @@ export default function ChatPage() {
     const getRequests = useFriendStore((state) => state.getRequests);
     const getConversations = useChatStore((state) => state.getConversations);
     const fetchBlockedUsers = useChatStore((state) => state.fetchBlockedUsers);
+    const fetchUserPreferences = usePreferencesStore((state) => state.fetchUserPreferences);
 
     const [isWallpaperOpen, setIsWallpaperOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -38,12 +40,13 @@ export default function ChatPage() {
         getRequests();
         getConversations();
         fetchBlockedUsers();
+        fetchUserPreferences();
         return () => {
             unsubscribeFromMessages();
             unsubscribeFromFriendEvents();
             unsubscribeFromReconnectEvents();
         };
-    }, [subscribeToMessages, unsubscribeFromMessages, subscribeToFriendEvents, unsubscribeFromFriendEvents, subscribeToReconnectEvents, unsubscribeFromReconnectEvents, getFriends, getRequests, getConversations, fetchBlockedUsers]);
+    }, [subscribeToMessages, unsubscribeFromMessages, subscribeToFriendEvents, unsubscribeFromFriendEvents, subscribeToReconnectEvents, unsubscribeFromReconnectEvents, getFriends, getRequests, getConversations, fetchBlockedUsers, fetchUserPreferences]);
 
     return (
         <div className="flex h-screen w-screen items-center justify-center overflow-hidden">

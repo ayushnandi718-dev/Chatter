@@ -77,6 +77,14 @@ io.on("connection", async (socket) => {
         }
     });
 
+    socket.on("messageDelivered", ({ to, messageId }) => {
+        if (!to || typeof to !== "string" || !messageId) return;
+        const receiverSocketId = userSocketMap[to];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("messageDelivered", { messageId, by: userId });
+        }
+    });
+
     socket.on("disconnect", () => {
         if (userId && userSocketMap[userId] === socket.id) {
             delete userSocketMap[userId];

@@ -3,15 +3,16 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useChatStore } from "../../store/useChatStore";
 import { useSoundStore } from "../../store/useSoundStore";
 import { useCryptoStore } from "../../store/useCryptoStore";
+import { usePreferencesStore } from "../../store/usePreferencesStore";
 import { useTheme } from "../../context/ThemeContext";
 import { axiosInstance } from "../../lib/axios";
-import { X, User, Shield, Palette, Volume2, Lock, Info, ChevronRight, Eye, EyeOff, MessageSquare, Globe, UserX, RefreshCw, Check, AlertTriangle, ChevronLeft } from "lucide-react";
+import { X, User, Shield, Palette, Volume2, Lock, Info, ChevronRight, ChevronLeft, UserX, RefreshCw, MessageSquare, Globe } from "lucide-react";
 import toast from "react-hot-toast";
 
 const THEMES = [
-    { id: "dark", label: "Dark", icon: "🌙" },
-    { id: "light", label: "Light", icon: "☀️" },
-    { id: "system", label: "System", icon: "💻" },
+    { id: "dark", label: "Dark", icon: "\u{1F319}" },
+    { id: "light", label: "Light", icon: "\u{2600}\u{FE0F}" },
+    { id: "system", label: "System", icon: "\u{1F4BB}" },
 ];
 
 function SettingRow({ label, description, children }) {
@@ -32,11 +33,12 @@ function SettingRow({ label, description, children }) {
     );
 }
 
-function Toggle({ checked, onChange }) {
+function Toggle({ checked, onChange, disabled }) {
     return (
         <button
             onClick={onChange}
-            className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"
+            disabled={disabled}
+            className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
             style={{ background: checked ? 'var(--accent)' : 'var(--bg-elevated)' }}
         >
             <span
@@ -56,10 +58,6 @@ function SectionHeader({ icon: Icon, title }) {
             </h3>
         </div>
     );
-}
-
-function Divider() {
-    return <div className="h-px" style={{ background: 'var(--border)' }} />;
 }
 
 function BlockedUserCard({ user, onReconnect, onUnblock }) {
@@ -128,26 +126,27 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
     const { theme, setTheme } = useTheme();
     const isSoundEnabled = useSoundStore((state) => state.isSoundEnabled);
     const toggleSound = useSoundStore((state) => state.toggleSound);
+    const typingSounds = useSoundStore((state) => state.typingSounds);
+    const setTypingSounds = useSoundStore((state) => state.setTypingSounds);
     const cryptoState = useCryptoStore((state) => state.cryptoState);
     const identityFingerprint = useCryptoStore((state) => state.identityFingerprint);
+    const userPrefs = usePreferencesStore((state) => state.userPrefs);
+    const fetchUserPreferences = usePreferencesStore((state) => state.fetchUserPreferences);
+    const updateUserPreferences = usePreferencesStore((state) => state.updateUserPreferences);
 
     const [displayName, setDisplayName] = useState(authUser?.displayName || "");
     const [about, setAbout] = useState(authUser?.about || "");
-    const [onlineStatus, setOnlineStatus] = useState(true);
-    const [readReceipts, setReadReceipts] = useState(true);
-    const [showProfilePhoto, setShowProfilePhoto] = useState(true);
-    const [typingSounds, setTypingSounds] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [showBlockedUsers, setShowBlockedUsers] = useState(false);
-    const [isReconnecting, setIsReconnecting] = useState(null);
 
     useEffect(() => {
         if (isOpen) {
             setDisplayName(authUser?.displayName || "");
             setAbout(authUser?.about || "");
             fetchBlockedUsers();
+            fetchUserPreferences();
         }
-    }, [isOpen, authUser, fetchBlockedUsers]);
+    }, [isOpen, authUser, fetchBlockedUsers, fetchUserPreferences]);
 
     const handleSaveProfile = async () => {
         if (!displayName.trim()) {
@@ -169,13 +168,20 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
         }
     };
 
+    const handleTogglePref = async (key, value) => {
+        try {
+            await updateUserPreferences({ [key]: value });
+        } catch {
+            toast.error("Failed to update setting");
+        }
+    };
+
     const handleReconnect = async (userId) => {
-        setIsReconnecting(userId);
         try {
             await sendReconnectRequest(userId);
             await fetchBlockedUsers();
-        } finally {
-            setIsReconnecting(null);
+        } catch {
+            // toast already shown
         }
     };
 
@@ -195,11 +201,9 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
     return (
         <div className="fixed inset-0 z-50 flex justify-end"
              onClick={onClose}>
-            {/* Backdrop */}
             <div className="absolute inset-0 transition-opacity"
                  style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
 
-            {/* Panel */}
             <div
                 className="relative h-full w-full sm:w-96 flex flex-col overflow-hidden"
                 style={{
@@ -209,7 +213,6 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
                 <div className="flex items-center justify-between px-5 py-4 shrink-0"
                      style={{ borderBottom: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-2">
@@ -237,10 +240,8 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                     </button>
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
                     {showBlockedUsers ? (
-                        /* Blocked Users View */
                         <div className="space-y-3">
                             {blockedUsers.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -252,7 +253,7 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                                         No blocked users
                                     </p>
                                     <p className="text-[10px] mt-1 max-w-[200px]" style={{ color: 'var(--text-muted)' }}>
-                                        Users you block will appear here. You can send them a reconnect request later.
+                                        Users you block will appear here. You can send a reconnect request later.
                                     </p>
                                 </div>
                             ) : (
@@ -281,7 +282,6 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                             )}
                         </div>
                     ) : (
-                        /* Main Settings View */
                         <>
                             {/* Profile */}
                             <SectionHeader icon={User} title="Profile" />
@@ -406,13 +406,22 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                             <SectionHeader icon={Shield} title="Privacy & Security" />
                             <div className="rounded-xl p-3 divide-y" style={{ background: 'var(--bg-elevated)', divideColor: 'var(--border)' }}>
                                 <SettingRow label="Online Status" description="Show when you're active">
-                                    <Toggle checked={onlineStatus} onChange={() => setOnlineStatus(!onlineStatus)} />
+                                    <Toggle
+                                        checked={userPrefs.showOnlineStatus}
+                                        onChange={() => handleTogglePref("showOnlineStatus", !userPrefs.showOnlineStatus)}
+                                    />
                                 </SettingRow>
                                 <SettingRow label="Read Receipts" description="Show when you've read messages">
-                                    <Toggle checked={readReceipts} onChange={() => setReadReceipts(!readReceipts)} />
+                                    <Toggle
+                                        checked={userPrefs.readReceipts}
+                                        onChange={() => handleTogglePref("readReceipts", !userPrefs.readReceipts)}
+                                    />
                                 </SettingRow>
                                 <SettingRow label="Profile Photo" description="Visible to other users">
-                                    <Toggle checked={showProfilePhoto} onChange={() => setShowProfilePhoto(!showProfilePhoto)} />
+                                    <Toggle
+                                        checked={userPrefs.showProfilePhoto}
+                                        onChange={() => handleTogglePref("showProfilePhoto", !userPrefs.showProfilePhoto)}
+                                    />
                                 </SettingRow>
                                 <button
                                     onClick={() => setShowBlockedUsers(true)}
@@ -435,10 +444,23 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                             <SectionHeader icon={Volume2} title="Sound" />
                             <div className="rounded-xl p-3 divide-y" style={{ background: 'var(--bg-elevated)', divideColor: 'var(--border)' }}>
                                 <SettingRow label="Message Sounds" description="Play sounds for new messages">
-                                    <Toggle checked={isSoundEnabled} onChange={toggleSound} />
+                                    <Toggle
+                                        checked={userPrefs.messageSounds}
+                                        onChange={() => {
+                                            handleTogglePref("messageSounds", !userPrefs.messageSounds);
+                                            toggleSound();
+                                        }}
+                                    />
                                 </SettingRow>
                                 <SettingRow label="Typing Sounds" description="Keystroke feedback sounds">
-                                    <Toggle checked={typingSounds} onChange={() => setTypingSounds(!typingSounds)} />
+                                    <Toggle
+                                        checked={userPrefs.typingSounds}
+                                        onChange={() => {
+                                            const next = !userPrefs.typingSounds;
+                                            handleTogglePref("typingSounds", next);
+                                            setTypingSounds(next);
+                                        }}
+                                    />
                                 </SettingRow>
                             </div>
 
@@ -498,7 +520,7 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                                      style={{ background: 'var(--bg-surface)' }}>
                                     <Globe className="h-3 w-3 shrink-0" style={{ color: 'var(--text-muted)' }} />
                                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                                        End-to-end encryption • Open source
+                                        End-to-end encryption &bull; Open source
                                     </span>
                                 </div>
                             </div>
