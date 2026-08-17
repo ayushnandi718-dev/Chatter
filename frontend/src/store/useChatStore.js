@@ -239,4 +239,51 @@ export const useChatStore = create((set, get) => ({
             socket.emit("stopTyping", { to: toUserId });
         }
     },
+
+    blockedUserIds: [],
+
+    fetchBlockedUsers: async () => {
+        try {
+            const res = await axiosInstance.get("/blocks");
+            set({ blockedUserIds: res.data.blockedUserIds || [] });
+        } catch {
+            // silent
+        }
+    },
+
+    blockUser: async (userId) => {
+        try {
+            await axiosInstance.post(`/blocks/${userId}`);
+            set((state) => ({
+                blockedUserIds: [...state.blockedUserIds, userId],
+                selectedUser: state.selectedUser?._id === userId ? null : state.selectedUser,
+            }));
+            toast.success("User blocked");
+            get().getConversations();
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to block user");
+        }
+    },
+
+    unblockUser: async (userId) => {
+        try {
+            await axiosInstance.delete(`/blocks/${userId}`);
+            set((state) => ({
+                blockedUserIds: state.blockedUserIds.filter((id) => id !== userId),
+            }));
+            toast.success("User unblocked");
+            get().getConversations();
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to unblock user");
+        }
+    },
+
+    reportUser: async (userId, reason, description) => {
+        try {
+            await axiosInstance.post(`/blocks/report/${userId}`, { reason, description });
+            toast.success("Report submitted");
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to submit report");
+        }
+    },
 }));

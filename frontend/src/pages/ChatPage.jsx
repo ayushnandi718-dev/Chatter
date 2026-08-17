@@ -22,6 +22,7 @@ export default function ChatPage() {
     const getFriends = useFriendStore((state) => state.getFriends);
     const getRequests = useFriendStore((state) => state.getRequests);
     const getConversations = useChatStore((state) => state.getConversations);
+    const fetchBlockedUsers = useChatStore((state) => state.fetchBlockedUsers);
 
     const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -33,11 +34,12 @@ export default function ChatPage() {
         getFriends();
         getRequests();
         getConversations();
+        fetchBlockedUsers();
         return () => {
             unsubscribeFromMessages();
             unsubscribeFromFriendEvents();
         };
-    }, [subscribeToMessages, unsubscribeFromMessages, subscribeToFriendEvents, unsubscribeFromFriendEvents, getFriends, getRequests, getConversations]);
+    }, [subscribeToMessages, unsubscribeFromMessages, subscribeToFriendEvents, unsubscribeFromFriendEvents, getFriends, getRequests, getConversations, fetchBlockedUsers]);
 
     return (
         <div

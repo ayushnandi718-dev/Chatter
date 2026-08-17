@@ -83,18 +83,79 @@ export function ChatComposer() {
         setRecordDuration(0);
     };
 
+    const getSupportedMimeType = () => {
+        const types = [
+            "audio/webm;codecs=opus",
+            "audio/webm",
+            "audio/mp4",
+            "audio/ogg;codecs=opus",
+            "audio/wav",
+        ];
+        for (const type of types) {
+            if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) {
+                return type;
+            }
+        }
+        return "";
+    };
+
     const startRecording = async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            toast.error("Recording not supported in this browser");
+            return;
+        }
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+            const permissionStatus = await navigator.permissions?.query({ name: "microphone" });
+            if (permissionStatus?.state === "denied") {
+                toast.error("Microphone is blocked in browser settings. Allow it for this site and reload.");
+                return;
+            }
+        } catch {
+            // permissions.query not supported — proceed to getUserMedia
+        }
+
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                toast.error("Microphone permission denied. Click the lock icon in the address bar and allow microphone access.");
+            } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+                toast.error("No microphone found. Connect a microphone and try again.");
+            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+                toast.error("Microphone is in use by another app. Close other apps using the mic.");
+            } else {
+                toast.error("Could not access microphone: " + (err.message || err.name));
+            }
+            return;
+        }
+
+        const mimeType = getSupportedMimeType();
+        if (!mimeType) {
+            stream.getTracks().forEach((t) => t.stop());
+            toast.error("No supported audio format found in this browser");
+            return;
+        }
+
+        try {
+            const recorder = new MediaRecorder(stream, { mimeType });
             audioChunksRef.current = [];
 
             recorder.ondataavailable = (e) => {
                 if (e.data.size > 0) audioChunksRef.current.push(e.data);
             };
 
+            recorder.onerror = () => {
+                stream.getTracks().forEach((t) => t.stop());
+                setIsRecording(false);
+                if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+                toast.error("Recording error occurred");
+            };
+
             recorder.onstop = () => {
-                const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+                const ext = mimeType.includes("webm") ? "webm" : mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "wav";
+                const blob = new Blob(audioChunksRef.current, { type: mimeType.split(";")[0] });
                 setRecordedBlob(blob);
                 stream.getTracks().forEach((t) => t.stop());
             };
@@ -108,8 +169,9 @@ export function ChatComposer() {
             recordTimerRef.current = setInterval(() => {
                 setRecordDuration((d) => d + 1);
             }, 1000);
-        } catch {
-            toast.error("Microphone access denied");
+        } catch (err) {
+            stream.getTracks().forEach((t) => t.stop());
+            toast.error("Could not start recording: " + (err.message || err.name));
         }
     };
 
