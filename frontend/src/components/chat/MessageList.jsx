@@ -239,6 +239,73 @@ function MessageContextMenu({ x, y, message, isOutgoing, onClose, onReply, onDel
     );
 }
 
+function HoverActionBar({ message, isOutgoing, onReply, onReact, onPin, onEdit, onDelete, onMore }) {
+    const ref = useRef(null);
+    const [visible, setVisible] = useState(false);
+    const lastTapRef = useRef(0);
+
+    const show = () => setVisible(true);
+    const hide = () => setVisible(false);
+
+    const handleTouchEnd = useCallback((e) => {
+        const now = Date.now();
+        if (now - lastTapRef.current < 300) {
+            e.preventDefault();
+            show();
+        }
+        lastTapRef.current = now;
+    }, []);
+
+    if (!visible) {
+        return (
+            <div
+                ref={ref}
+                onMouseEnter={show}
+                onTouchEnd={handleTouchEnd}
+                className="absolute inset-0 z-10"
+                style={{ pointerEvents: "auto" }}
+            />
+        );
+    }
+
+    const iconBtn = (icon, label, onClick, danger = false) => (
+        <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className="flex items-center justify-center h-7 w-7 rounded-full transition-all"
+            style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: danger ? "var(--danger)" : "var(--text-primary)",
+            }}
+            title={label}
+        >
+            {icon}
+        </button>
+    );
+
+    return (
+        <div
+            ref={ref}
+            onMouseLeave={hide}
+            className="absolute z-20 flex items-center gap-0.5 rounded-full px-1 py-0.5"
+            style={{
+                top: -36,
+                left: isOutgoing ? "auto" : 0,
+                right: isOutgoing ? 0 : "auto",
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+            }}
+        >
+            {iconBtn(<Reply className="h-3.5 w-3.5" />, "Reply", onReply)}
+            {iconBtn(<span className="text-xs">&#x1f60a;</span>, "React", onReact)}
+            {isOutgoing && !message.isDeletedForEveryone && iconBtn(<Pin className="h-3.5 w-3.5" />, message.isPinned ? "Unpin" : "Pin", onPin)}
+            {isOutgoing && !message.isDeletedForEveryone && message.text && iconBtn(<Pencil className="h-3.5 w-3.5" />, "Edit", onEdit)}
+            {iconBtn(<Trash2 className="h-3.5 w-3.5" />, "Delete", onDelete, true)}
+        </div>
+    );
+}
+
 function ReplyPreview({ replyToMessage, onCancel }) {
     if (!replyToMessage) return null;
 
@@ -435,6 +502,18 @@ export function MessageList({ onReply }) {
                                 }}
                                 onContextMenu={(e) => !isDeleted && handleContextMenu(e, msg)}
                                 onTouchStart={(e) => !isDeleted && handleTouchStart(e, msg)}>
+
+                                {!isDeleted && (
+                                    <HoverActionBar
+                                        message={msg}
+                                        isOutgoing={isOutgoing}
+                                        onReply={() => { if (onReply) onReply(msg); }}
+                                        onReact={() => setReactionPickerMsgId(msg._id)}
+                                        onPin={() => handlePin(msg._id)}
+                                        onEdit={() => handleEdit(msg)}
+                                        onDelete={() => handleDelete(msg._id)}
+                                    />
+                                )}
 
                                 {isDeleted ? (
                                     <p className="text-[11px] italic" style={{ color: "var(--text-muted)" }}>
