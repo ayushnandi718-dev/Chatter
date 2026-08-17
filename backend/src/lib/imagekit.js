@@ -1,10 +1,13 @@
 import ImageKit, { toFile } from "@imagekit/nodejs";
 
 const privateKey = process.env.IMAGEKIT_PRIVATE_KEY || "";
-const imagekit = new ImageKit({ privateKey });
+const publicKey = process.env.IMAGEKIT_PUBLIC_KEY || "";
+const urlEndpoint = process.env.IMAGEKIT_URL_ENDPOINT || "";
+
+const imagekit = new ImageKit({ privateKey, publicKey, urlEndpoint });
 
 function hasImageKitConfig() {
-    return Boolean(privateKey);
+    return Boolean(privateKey && publicKey);
 }
 
 function createFileName(originalName = "upload") {
@@ -12,10 +15,11 @@ function createFileName(originalName = "upload") {
     return `chat-${Date.now()}-${safeName}`;
 }
 
-/**
- * Upload image or video buffer directly to ImageKit
- */
 async function uploadChatMedia(file) {
+    if (!privateKey) {
+        throw new Error("IMAGEKIT_PRIVATE_KEY is not configured");
+    }
+
     const fileName = createFileName(file.originalname);
 
     const result = await imagekit.files.upload({

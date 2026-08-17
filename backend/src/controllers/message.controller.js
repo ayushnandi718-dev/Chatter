@@ -153,20 +153,25 @@ export async function sendMessage(req, res) {
         let fileSize = 0;
 
         if (req.file) {
-            const uploadedUrl = await uploadChatMedia(req.file);
-            const mime = req.file.mimetype;
-            fileName = req.file.originalname;
-            fileType = mime;
-            fileSize = req.file.size;
+            try {
+                const uploadedUrl = await uploadChatMedia(req.file);
+                const mime = req.file.mimetype;
+                fileName = req.file.originalname;
+                fileType = mime;
+                fileSize = req.file.size;
 
-            if (mime.startsWith("image/")) {
-                imageUrl = uploadedUrl;
-            } else if (mime.startsWith("video/")) {
-                videoUrl = uploadedUrl;
-            } else if (mime.startsWith("audio/")) {
-                audioUrl = uploadedUrl;
-            } else {
-                fileUrl = uploadedUrl;
+                if (mime.startsWith("image/")) {
+                    imageUrl = uploadedUrl;
+                } else if (mime.startsWith("video/")) {
+                    videoUrl = uploadedUrl;
+                } else if (mime.startsWith("audio/")) {
+                    audioUrl = uploadedUrl;
+                } else {
+                    fileUrl = uploadedUrl;
+                }
+            } catch (uploadErr) {
+                console.error("Media upload failed:", uploadErr.message);
+                return res.status(500).json({ message: "Media upload failed: " + (uploadErr.message || "unknown error") });
             }
         }
 
@@ -211,7 +216,8 @@ export async function sendMessage(req, res) {
         res.status(201).json(newMessage);
     } catch (error) {
         console.error("Error in sendMessage:", error.message);
-        res.status(500).json({ message: "Internal server error" });
+        console.error("Full error:", error);
+        res.status(500).json({ message: "Internal server error: " + (error.message || "") });
     }
 }
 
