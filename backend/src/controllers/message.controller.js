@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import Friendship from "../models/friendship.model.js";
@@ -30,6 +31,19 @@ export async function getConversationsForSidebar(req, res) {
     try {
         const loggedInUserId = req.user._id;
 
+        const friendDocs = await Friendship.find({
+            status: "accepted",
+            $or: [{ requester: loggedInUserId }, { recipient: loggedInUserId }],
+        });
+
+        const friendIds = new Set();
+        for (const f of friendDocs) {
+            const fid = f.requester.toString() === loggedInUserId.toString()
+                ? f.recipient.toString()
+                : f.requester.toString();
+            friendIds.add(fid);
+        }
+
         const conversations = await Message.aggregate([
             {
                 $match: {
@@ -43,6 +57,11 @@ export async function getConversationsForSidebar(req, res) {
                         $cond: [{ $eq: ["$senderId", loggedInUserId] }, "$receiverId", "$senderId"],
                     },
                     lastMessage: { $first: "$$ROOT" },
+                },
+            },
+            {
+                $match: {
+                    _id: { $in: [...friendIds].map((id) => new mongoose.Types.ObjectId(id)) },
                 },
             },
             {
