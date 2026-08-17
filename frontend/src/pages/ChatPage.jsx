@@ -12,6 +12,7 @@ import { SearchUsers } from "../components/chat/SearchUsers";
 import { FriendRequests } from "../components/chat/FriendRequests";
 import { Sidebar } from "../components/chat/Sidebar";
 import { SettingsPanel } from "../components/chat/SettingsPanel";
+import { UserProfileModal } from "../components/chat/UserProfileModal";
 
 export default function ChatPage() {
     const selectedUser = useChatStore((state) => state.selectedUser);
@@ -31,6 +32,7 @@ export default function ChatPage() {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isRequestsOpen, setIsRequestsOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [viewProfileUserId, setViewProfileUserId] = useState(null);
 
     useEffect(() => {
         subscribeToMessages();
@@ -62,6 +64,7 @@ export default function ChatPage() {
                         onOpenSearch={() => setIsSearchOpen(true)}
                         onOpenRequests={() => setIsRequestsOpen(true)}
                         onOpenSettings={() => setIsSettingsOpen(true)}
+                        onOpenProfile={(userId) => setViewProfileUserId(userId)}
                     />
                 </div>
 
@@ -75,6 +78,7 @@ export default function ChatPage() {
                             <ChatHeader
                                 onOpenWallpapers={() => setIsWallpaperOpen(true)}
                                 onOpenSearch={() => setIsSearchOpen(true)}
+                                onOpenProfile={(userId) => setViewProfileUserId(userId)}
                             />
                             <ChatMessageArea />
                             <ChatComposer />
@@ -99,6 +103,19 @@ export default function ChatPage() {
                 onClose={() => setIsSettingsOpen(false)}
                 onOpenWallpapers={() => { setIsSettingsOpen(false); setIsWallpaperOpen(true); }}
             />
+            {viewProfileUserId && (
+                <UserProfileModal
+                    userId={viewProfileUserId}
+                    onClose={() => setViewProfileUserId(null)}
+                    onStartChat={(userId) => {
+                        const conv = useChatStore.getState().conversations.find((c) => c._id === userId);
+                        if (conv) {
+                            useChatStore.getState().setSelectedUser(conv.partner || { _id: userId });
+                        }
+                        setViewProfileUserId(null);
+                    }}
+                />
+            )}
         </div>
     );
 }

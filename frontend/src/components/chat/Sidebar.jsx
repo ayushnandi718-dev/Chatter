@@ -7,7 +7,7 @@ import { usePreferencesStore } from "../../store/usePreferencesStore";
 import { UserButton } from "@clerk/react";
 import { Search, MessageSquare, Users, UserPlus, Bell, Shield, VolumeX, Pin, Archive, ArchiveRestore, Settings } from "lucide-react";
 
-export function Sidebar({ onOpenSearch, onOpenRequests, onOpenSettings }) {
+export function Sidebar({ onOpenSearch, onOpenRequests, onOpenSettings, onOpenProfile }) {
     const conversations = useChatStore((state) => state.conversations);
     const selectedUser = useChatStore((state) => state.selectedUser);
     const setSelectedUser = useChatStore((state) => state.setSelectedUser);
@@ -124,10 +124,10 @@ export function Sidebar({ onOpenSearch, onOpenRequests, onOpenSettings }) {
                 onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-hover)'; }}
                 onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
             >
-                <div className="relative shrink-0">
+                <div className="relative shrink-0 cursor-pointer" onClick={(e) => { e.stopPropagation(); onOpenProfile?.(partner?._id); }}>
                     <img src={partner?.profilePic || "/favicon.svg"}
                          alt=""
-                         className="h-9 w-9 rounded-full object-cover" />
+                         className="h-9 w-9 rounded-full object-cover hover:opacity-80 transition-opacity" />
                     <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2"
                           style={{
                               background: isOnline ? 'var(--success)' : '#52525b',

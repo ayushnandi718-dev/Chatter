@@ -6,7 +6,7 @@ import { useSoundStore } from "../../store/useSoundStore";
 import { X, Volume2, VolumeX, Palette, Image as ImageIcon, ArrowLeft, UserMinus, Search, Shield, MoreVertical, Ban, Flag, Unlock } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
-export function ChatHeader({ onOpenWallpapers, onOpenSearch }) {
+export function ChatHeader({ onOpenWallpapers, onOpenSearch, onOpenProfile }) {
     const selectedUser = useChatStore((state) => state.selectedUser);
     const setSelectedUser = useChatStore((state) => state.setSelectedUser);
     const onlineUsers = useAuthStore((state) => state.onlineUsers);
@@ -79,10 +79,10 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch }) {
                     <ArrowLeft className="h-4.5 w-4.5" />
                 </button>
 
-                <div className="relative">
+                <div className="relative cursor-pointer" onClick={() => onOpenProfile?.(selectedUser._id)}>
                     <img src={selectedUser.profilePic || "/favicon.svg"}
                          alt=""
-                         className="h-8 w-8 rounded-full object-cover" />
+                         className="h-8 w-8 rounded-full object-cover transition-opacity hover:opacity-80" />
                     <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2"
                           style={{
                               background: isOnline ? 'var(--success)' : '#52525b',
@@ -90,8 +90,8 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch }) {
                           }} />
                 </div>
 
-                <div>
-                    <h3 className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                <div className="cursor-pointer" onClick={() => onOpenProfile?.(selectedUser._id)}>
+                    <h3 className="text-xs font-semibold hover:underline" style={{ color: 'var(--text-primary)' }}>
                         {selectedUser.displayName || selectedUser.username}
                     </h3>
                     <p className="text-[10px] flex items-center gap-1.5">

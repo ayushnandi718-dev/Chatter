@@ -155,16 +155,25 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
         }
         setIsSaving(true);
         try {
-            const res = await axiosInstance.patch("/users/profile", {
-                displayName: displayName.trim(),
-                about: about.trim(),
-            });
-            setAuthUser({ ...authUser, ...res.data });
+            const [nameRes, aboutRes] = await Promise.all([
+                axiosInstance.put("/users/display-name", { displayName: displayName.trim() }),
+                axiosInstance.put("/users/about", { about: about.trim() }),
+            ]);
+            setAuthUser({ ...authUser, ...nameRes.data, ...aboutRes.data });
             toast.success("Profile updated");
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to update profile");
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleAboutBlur = async () => {
+        try {
+            const res = await axiosInstance.put("/users/about", { about: about.trim() });
+            setAuthUser({ ...authUser, ...res.data });
+        } catch {
+            // silent
         }
     };
 
@@ -337,6 +346,7 @@ export function SettingsPanel({ isOpen, onClose, onOpenWallpapers }) {
                                     <textarea
                                         value={about}
                                         onChange={(e) => setAbout(e.target.value.slice(0, 120))}
+                                        onBlur={handleAboutBlur}
                                         placeholder="What's on your mind?"
                                         rows={2}
                                         className="w-full rounded-lg px-3 py-2 text-xs outline-none resize-none"
