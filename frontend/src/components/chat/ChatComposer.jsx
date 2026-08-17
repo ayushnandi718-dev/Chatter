@@ -4,7 +4,7 @@ import { useSoundStore } from "../../store/useSoundStore";
 import { Send, Image, X, Loader2, Video } from "lucide-react";
 import toast from "react-hot-toast";
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 export function ChatComposer() {
     const [text, setText] = useState("");
@@ -14,10 +14,14 @@ export function ChatComposer() {
 
     const fileInputRef = useRef(null);
     const textareaRef = useRef(null);
+    const typingTimeoutRef = useRef(null);
 
     const sendMessage = useChatStore((state) => state.sendMessage);
     const isSendingMedia = useChatStore((state) => state.isSendingMedia);
+    const selectedUser = useChatStore((state) => state.selectedUser);
     const playKeystrokeSound = useSoundStore((state) => state.playKeystrokeSound);
+    const sendTyping = useChatStore((state) => state.sendTyping);
+    const sendStopTyping = useChatStore((state) => state.sendStopTyping);
 
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
@@ -64,9 +68,11 @@ export function ChatComposer() {
                 await sendMessage({ text: text.trim() });
             }
 
-            // Reset input
             setText("");
             handleRemoveFile();
+            if (selectedUser?._id) {
+                sendStopTyping(selectedUser._id);
+            }
         } catch (error) {
             console.error("Failed to send message:", error);
         }
@@ -81,9 +87,23 @@ export function ChatComposer() {
         }
     };
 
+    const handleTextChange = (e) => {
+        setText(e.target.value);
+
+        if (selectedUser?._id) {
+            sendTyping(selectedUser._id);
+
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            typingTimeoutRef.current = setTimeout(() => {
+                sendStopTyping(selectedUser._id);
+            }, 2000);
+        }
+    };
+
     return (
         <div className="p-3 border-t border-white/10 bg-slate-900/70 backdrop-blur-xl z-20">
-            {/* Media Attachment Preview */}
             {filePreview && (
                 <div className="mb-2 flex items-center gap-3 rounded-xl bg-slate-800/80 p-2 border border-white/10 backdrop-blur-md">
                     <div className="relative h-14 w-14 overflow-hidden rounded-lg border border-white/10 bg-black/40">
@@ -110,9 +130,7 @@ export function ChatComposer() {
                 </div>
             )}
 
-            {/* Input form */}
             <form onSubmit={handleSend} className="flex items-end gap-2">
-                {/* File Attachment Input (Hidden) */}
                 <input
                     type="file"
                     ref={fileInputRef}
@@ -121,7 +139,6 @@ export function ChatComposer() {
                     className="hidden"
                 />
 
-                {/* File Trigger Button */}
                 <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -131,12 +148,11 @@ export function ChatComposer() {
                     <Image className="h-5 w-5" />
                 </button>
 
-                {/* Message Input Box */}
                 <div className="relative flex-1">
                     <textarea
                         ref={textareaRef}
                         value={text}
-                        onChange={(e) => setText(e.target.value)}
+                        onChange={handleTextChange}
                         onKeyDown={handleKeyDown}
                         placeholder="Type a message..."
                         rows={1}
@@ -144,7 +160,6 @@ export function ChatComposer() {
                     />
                 </div>
 
-                {/* Send Button */}
                 <button
                     type="submit"
                     disabled={(!text.trim() && !selectedFile) || isSendingMedia}

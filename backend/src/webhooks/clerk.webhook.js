@@ -1,9 +1,13 @@
 import express from "express";
 import User from "../models/user.model.js";
 import { verifyWebhook } from "@clerk/backend/webhooks";
-
+import { generateUsername } from "../lib/utils.js";
 
 const router = express.Router();
+
+function generateUniqueSuffix() {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+}
 
 router.post("/", async (req, res) => {
     try {
@@ -13,7 +17,6 @@ router.post("/", async (req, res) => {
             return;
         }
 
-        // clerk's verifier expects a Web Request with the raw body; express.raw gives a Buffer.
         const payload = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : String(req.body);
         const request = new Request("http://internal/webhooks/clerk", {
             method: "POST",
@@ -21,7 +24,6 @@ router.post("/", async (req, res) => {
             body: payload,
         });
 
-        // throws if the signature is wrong or the body was tampered with; only then do we trust evt.
         const evt = await verifyWebhook(request, { signingSecret });
 
         if (evt.type === "user.created" || evt.type === "user.updated") {
@@ -34,10 +36,37 @@ router.post("/", async (req, res) => {
             const fullName =
                 [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || email?.split("@")[0];
 
+            const existingUser = await User.findOne({ clerkId: u.id });
+
+            const updateData = {
+                clerkId: u.id,
+                email,
+                fullName,
+                profilePic: u.image_url,
+            };
+
+            if (!existingUser || !existingUser.username) {
+                let username = generateUsername(email);
+
+                if (username) {
+                    let isTaken = await User.findOne({ username });
+                    let attempts = 0;
+                    while (isTaken && attempts < 10) {
+                        username = generateUsername(email) + generateUniqueSuffix();
+                        isTaken = await User.findOne({ username });
+                        attempts++;
+                    }
+                    updateData.username = username;
+                    if (!existingUser || !existingUser.displayName) {
+                        updateData.displayName = fullName;
+                    }
+                }
+            }
+
             await User.findOneAndUpdate(
                 { clerkId: u.id },
-                { clerkId: u.id, email, fullName, profilePic: u.image_url },
-                { new: true, upsert: true, setDefaultsOnInsert: true },
+                updateData,
+                { new: true, upsert: true, setDefaultsOnInsert: true }
             );
         }
 

@@ -14,11 +14,17 @@ const io = new Server(server, {
     },
 });
 
-// Map of userId -> socketId
 const userSocketMap = {};
 
 export function getReceiverSocketId(userId) {
     return userSocketMap[userId];
+}
+
+export function emitToUser(userId, event, data) {
+    const socketId = userSocketMap[userId];
+    if (socketId) {
+        io.to(socketId).emit(event, data);
+    }
 }
 
 io.on("connection", (socket) => {
@@ -27,8 +33,21 @@ io.on("connection", (socket) => {
         userSocketMap[userId] = socket.id;
     }
 
-    // Broadcast list of currently online user IDs
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
+
+    socket.on("typing", ({ to }) => {
+        const receiverSocketId = userSocketMap[to];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("typing", { from: userId });
+        }
+    });
+
+    socket.on("stopTyping", ({ to }) => {
+        const receiverSocketId = userSocketMap[to];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("stopTyping", { from: userId });
+        }
+    });
 
     socket.on("disconnect", () => {
         if (userId && userSocketMap[userId]) {

@@ -1,0 +1,17 @@
+import express from "express";
+import { protectRoute } from "../middleware/auth.middleware.js";
+import {
+    blockUser,
+    unblockUser,
+    getBlockedUsers,
+    reportUser,
+} from "../controllers/block.controller.js";
+
+const router = express.Router();
+
+router.get("/", protectRoute, getBlockedUsers);
+router.post("/:userId", protectRoute, blockUser);
+router.delete("/:userId", protectRoute, unblockUser);
+router.post("/report/:userId", protectRoute, reportUser);
+
+export default router;

@@ -1,19 +1,29 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
+import Friendship from "../models/friendship.model.js";
+import Block from "../models/block.model.js";
 import { uploadChatMedia } from "../lib/imagekit.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
-export async function getUsersForSidebar(req, res) {
-    try {
-        const loggedInUserId = req.user._id;
+async function areFriends(userId1, userId2) {
+    const friendship = await Friendship.findOne({
+        status: "accepted",
+        $or: [
+            { requester: userId1, recipient: userId2 },
+            { requester: userId2, recipient: userId1 },
+        ],
+    });
+    return Boolean(friendship);
+}
 
-        const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-clerkId");
-
-        res.status(200).json(filteredUsers);
-    } catch (error) {
-        console.error("Error in getUsersForSidebar:", error.message);
-        res.status(500).json({ message: "Internal server error" });
-    }
+async function isBlocked(userId1, userId2) {
+    const block = await Block.findOne({
+        $or: [
+            { blocker: userId1, blocked: userId2 },
+            { blocker: userId2, blocked: userId1 },
+        ],
+    });
+    return Boolean(block);
 }
 
 export async function getConversationsForSidebar(req, res) {
@@ -21,17 +31,12 @@ export async function getConversationsForSidebar(req, res) {
         const loggedInUserId = req.user._id;
 
         const conversations = await Message.aggregate([
-            // 1. Keep only messages sent or received by the logged in user
             {
                 $match: {
                     $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }],
                 },
             },
-            // 2. Sort latest messages first
-            {
-                $sort: { createdAt: -1 },
-            },
-            // 3. Group by partner
+            { $sort: { createdAt: -1 } },
             {
                 $group: {
                     _id: {
@@ -40,7 +45,6 @@ export async function getConversationsForSidebar(req, res) {
                     lastMessage: { $first: "$$ROOT" },
                 },
             },
-            // 4. Lookup partner profile details
             {
                 $lookup: {
                     from: "users",
@@ -49,12 +53,12 @@ export async function getConversationsForSidebar(req, res) {
                     as: "partner",
                 },
             },
-            {
-                $unwind: "$partner",
-            },
+            { $unwind: "$partner" },
             {
                 $project: {
                     "partner.clerkId": 0,
+                    "partner.email": 0,
+                    "partner.fullName": 0,
                 },
             },
         ]);
@@ -70,6 +74,16 @@ export async function getMessages(req, res) {
     try {
         const { id: userToChatId } = req.params;
         const myId = req.user._id;
+
+        const friends = await areFriends(myId, userToChatId);
+        if (!friends) {
+            return res.status(403).json({ message: "You must be friends to view messages" });
+        }
+
+        const blocked = await isBlocked(myId, userToChatId);
+        if (blocked) {
+            return res.status(403).json({ message: "Cannot view messages with this user" });
+        }
 
         const messages = await Message.find({
             $or: [
@@ -90,6 +104,16 @@ export async function sendMessage(req, res) {
         const { text } = req.body;
         const { id: receiverId } = req.params;
         const senderId = req.user._id;
+
+        const friends = await areFriends(senderId, receiverId);
+        if (!friends) {
+            return res.status(403).json({ message: "You must be friends to send messages" });
+        }
+
+        const blocked = await isBlocked(senderId, receiverId);
+        if (blocked) {
+            return res.status(403).json({ message: "Cannot send messages to this user" });
+        }
 
         let imageUrl = null;
         let videoUrl = null;
@@ -115,7 +139,6 @@ export async function sendMessage(req, res) {
             video: videoUrl,
         });
 
-        // Broadcast to receiver in real-time via Socket.io if online
         const receiverSocketId = getReceiverSocketId(receiverId);
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("newMessage", newMessage);
@@ -124,6 +147,28 @@ export async function sendMessage(req, res) {
         res.status(201).json(newMessage);
     } catch (error) {
         console.error("Error in sendMessage:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function markAsRead(req, res) {
+    try {
+        const { id: userId } = req.params;
+        const myId = req.user._id;
+
+        await Message.updateMany(
+            { senderId: userId, receiverId: myId, readAt: null },
+            { readAt: new Date() }
+        );
+
+        const senderSocketId = getReceiverSocketId(userId);
+        if (senderSocketId) {
+            io.to(senderSocketId).emit("messagesRead", { by: myId });
+        }
+
+        res.status(200).json({ ok: true });
+    } catch (error) {
+        console.error("Error in markAsRead:", error.message);
         res.status(500).json({ message: "Internal server error" });
     }
 }

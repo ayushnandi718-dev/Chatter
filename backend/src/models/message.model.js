@@ -24,11 +24,14 @@ const messageSchema = new mongoose.Schema(
             type: String,
             default: null,
         },
+        readAt: {
+            type: Date,
+            default: null,
+        },
     },
     { timestamps: true }
 );
 
-// Compound index for querying conversation histories efficiently
 messageSchema.index({ senderId: 1, receiverId: 1, createdAt: 1 });
 messageSchema.index({ receiverId: 1, senderId: 1, createdAt: 1 });
 

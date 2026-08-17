@@ -1,11 +1,13 @@
 import { useEffect } from "react";
 import { useAuth } from "@clerk/react";
 import { useAuthStore } from "./store/useAuthStore";
+import { useFriendStore } from "./store/useFriendStore";
 import { ThemeProvider } from "./context/ThemeContext";
 import { WallpaperProvider } from "./context/WallpaperContext";
 import AuthPage from "./pages/AuthPage";
 import ChatPage from "./pages/ChatPage";
 import PageLoader from "./components/PageLoader";
+import UsernameModal from "./components/UsernameModal";
 import { Toaster } from "react-hot-toast";
 
 function AppContent() {
@@ -13,6 +15,7 @@ function AppContent() {
     const checkAuth = useAuthStore((state) => state.checkAuth);
     const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
     const disconnectSocket = useAuthStore((state) => state.disconnectSocket);
+    const authUser = useAuthStore((state) => state.authUser);
 
     useEffect(() => {
         if (isSignedIn) {
@@ -40,6 +43,7 @@ function AppContent() {
                     },
                 }}
             />
+            {isSignedIn && <UsernameModal />}
             {isSignedIn ? <ChatPage /> : <AuthPage />}
         </>
     );

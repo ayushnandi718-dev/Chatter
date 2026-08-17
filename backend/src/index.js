@@ -12,13 +12,15 @@ import { app, server } from "./lib/socket.js";
 import clerkWebhook from "./webhooks/clerk.webhook.js";
 import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
+import userRoutes from "./routes/user.route.js";
+import friendRoutes from "./routes/friend.route.js";
+import blockRoutes from "./routes/block.route.js";
 
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const publicDir = path.join(process.cwd(), "public");
 
-// Webhook requires raw request buffer for Svix signature verification
 app.use("/api/webhooks/clerk", express.raw({ type: "application/json" }), clerkWebhook);
 
 app.use(express.json());
@@ -35,9 +37,11 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/friends", friendRoutes);
+app.use("/api/blocks", blockRoutes);
 app.use("/api/messages", messageRoutes);
 
-// In production, serve Vite SPA static build
 if (fs.existsSync(publicDir)) {
     app.use(express.static(publicDir));
 

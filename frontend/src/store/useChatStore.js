@@ -5,36 +5,21 @@ import { useSoundStore } from "./useSoundStore";
 import toast from "react-hot-toast";
 
 export const useChatStore = create((set, get) => ({
-    users: [],
     conversations: [],
     messages: [],
     selectedUser: null,
-    isUsersLoading: false,
     isConversationsLoading: false,
     isMessagesLoading: false,
     isSendingMedia: false,
     searchQuery: "",
-    sidebarTab: "chats", // "chats" | "contacts"
+    typingUsers: [],
 
     setSearchQuery: (query) => set({ searchQuery: query }),
-    setSidebarTab: (tab) => set({ sidebarTab: tab }),
 
     setSelectedUser: (selectedUser) => {
         set({ selectedUser, messages: [] });
         if (selectedUser) {
             get().getMessages(selectedUser._id);
-        }
-    },
-
-    getUsers: async () => {
-        set({ isUsersLoading: true });
-        try {
-            const res = await axiosInstance.get("/messages/users");
-            set({ users: res.data });
-        } catch (error) {
-            console.error("Error fetching users:", error);
-        } finally {
-            set({ isUsersLoading: false });
         }
     },
 
@@ -55,6 +40,8 @@ export const useChatStore = create((set, get) => ({
         try {
             const res = await axiosInstance.get(`/messages/${userId}`);
             set({ messages: res.data });
+
+            await axiosInstance.post(`/messages/read/${userId}`).catch(() => {});
         } catch (error) {
             console.error("Error fetching messages:", error);
             toast.error("Failed to load messages");
@@ -84,10 +71,7 @@ export const useChatStore = create((set, get) => ({
             const newMsg = res.data;
             set({ messages: [...messages, newMsg] });
 
-            // Play send sound
             useSoundStore.getState().playSendSound();
-
-            // Refresh conversations list or update in-place
             get().getConversations();
 
             return newMsg;
@@ -107,13 +91,14 @@ export const useChatStore = create((set, get) => ({
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
 
-        // Remove any prior duplicate handler
         socket.off("newMessage");
+        socket.off("typing");
+        socket.off("stopTyping");
+        socket.off("messagesRead");
 
         socket.on("newMessage", (newMessage) => {
             const { selectedUser, messages } = get();
 
-            // If message belongs to the currently active conversation, append it
             const isFromActiveChat =
                 selectedUser &&
                 (newMessage.senderId === selectedUser._id || newMessage.receiverId === selectedUser._id);
@@ -122,11 +107,32 @@ export const useChatStore = create((set, get) => ({
                 set({ messages: [...messages, newMessage] });
             }
 
-            // Play incoming sound effect
             useSoundStore.getState().playReceiveSound();
-
-            // Refresh conversations sidebar
             get().getConversations();
+        });
+
+        socket.on("typing", ({ from }) => {
+            set((state) => ({
+                typingUsers: state.typingUsers.includes(from)
+                    ? state.typingUsers
+                    : [...state.typingUsers, from],
+            }));
+        });
+
+        socket.on("stopTyping", ({ from }) => {
+            set((state) => ({
+                typingUsers: state.typingUsers.filter((id) => id !== from),
+            }));
+        });
+
+        socket.on("messagesRead", ({ by }) => {
+            set((state) => ({
+                messages: state.messages.map((msg) =>
+                    msg.senderId === by && !msg.readAt
+                        ? { ...msg, readAt: new Date().toISOString() }
+                        : msg
+                ),
+            }));
         });
     },
 
@@ -134,5 +140,22 @@ export const useChatStore = create((set, get) => ({
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
         socket.off("newMessage");
+        socket.off("typing");
+        socket.off("stopTyping");
+        socket.off("messagesRead");
+    },
+
+    sendTyping: (toUserId) => {
+        const socket = useAuthStore.getState().socket;
+        if (socket) {
+            socket.emit("typing", { to: toUserId });
+        }
+    },
+
+    sendStopTyping: (toUserId) => {
+        const socket = useAuthStore.getState().socket;
+        if (socket) {
+            socket.emit("stopTyping", { to: toUserId });
+        }
     },
 }));
