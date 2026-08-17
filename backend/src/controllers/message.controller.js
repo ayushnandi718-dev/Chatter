@@ -394,6 +394,9 @@ export async function editMessage(req, res) {
             io.to(receiverSocketId).emit("messageEdited", {
                 messageId: message._id,
                 text: message.text,
+                encryptedText: message.encryptedText,
+                iv: message.iv,
+                protocolVersion: message.protocolVersion,
                 editedAt: message.editedAt,
             });
         }

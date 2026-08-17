@@ -396,10 +396,25 @@ export const useChatStore = create((set, get) => ({
             get().getConversations();
         });
 
-        socket.on("messageEdited", ({ messageId, text, editedAt }) => {
+        socket.on("messageEdited", async ({ messageId, text, encryptedText, iv, protocolVersion, editedAt }) => {
+            let decryptedText = text;
+
+            if (encryptedText && iv) {
+                const msg = get().messages.find((m) => m._id === messageId);
+                if (msg) {
+                    const decrypted = await useCryptoStore.getState().decryptIncoming({
+                        ...msg,
+                        encryptedText,
+                        iv,
+                        protocolVersion,
+                    });
+                    decryptedText = decrypted ?? "\ud83d\udd12 Could not decrypt";
+                }
+            }
+
             set((state) => ({
                 messages: state.messages.map((m) =>
-                    m._id === messageId ? { ...m, text, editedAt } : m
+                    m._id === messageId ? { ...m, text: decryptedText, editedAt } : m
                 ),
             }));
         });

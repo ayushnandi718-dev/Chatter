@@ -4,7 +4,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useCryptoStore } from "../../store/useCryptoStore";
 import { MediaModal } from "./MediaModal";
 import { ImageViewer } from "./ImageViewer";
-import { Loader2, Download, Check, CheckCheck, AlertCircle, Reply, Copy, Trash2, RotateCcw, Pencil } from "lucide-react";
+import { Loader2, Download, Check, CheckCheck, AlertCircle, Reply, Copy, Trash2, RotateCcw, Pencil, Pin } from "lucide-react";
 import toast from "react-hot-toast";
 import { axiosInstance } from "../../lib/axios";
 
@@ -132,7 +132,7 @@ function ReactionPicker({ onSelect, onClose }) {
     );
 }
 
-function MessageContextMenu({ x, y, message, isOutgoing, onClose, onReply, onDelete, onRetry, onEdit, onReact }) {
+function MessageContextMenu({ x, y, message, isOutgoing, onClose, onReply, onDelete, onRetry, onEdit, onReact, onPin }) {
     const ref = useRef(null);
 
     useEffect(() => {
@@ -177,9 +177,20 @@ function MessageContextMenu({ x, y, message, isOutgoing, onClose, onReply, onDel
                     style={{ color: "var(--text-primary)" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
                     onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                <span className="text-sm">😊</span>
+                <span className="text-sm">&#x1f60a;</span>
                 React
             </button>
+
+            {isOutgoing && !message.isDeletedForEveryone && (
+                <button onClick={() => { onPin(); onClose(); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-[11px] font-medium transition-colors"
+                        style={{ color: "var(--text-primary)" }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                    <Pin className="h-3 w-3" style={{ color: "var(--accent)" }} />
+                    {message.isPinned ? "Unpin" : "Pin"}
+                </button>
+            )}
 
             {message.text && (
                 <button onClick={handleCopy}
@@ -192,7 +203,7 @@ function MessageContextMenu({ x, y, message, isOutgoing, onClose, onReply, onDel
                 </button>
             )}
 
-            {isOutgoing && !message.isDeletedForEveryone && message.text && !message.encryptedText && (
+            {isOutgoing && !message.isDeletedForEveryone && message.text && (
                 <button onClick={onEdit}
                         className="flex w-full items-center gap-2 px-3 py-2 text-[11px] font-medium transition-colors"
                         style={{ color: "var(--text-primary)" }}
@@ -335,10 +346,36 @@ export function MessageList({ onReply }) {
         const newText = prompt("Edit message:", message.text);
         if (newText === null || newText.trim() === message.text.trim()) return;
         try {
-            await axiosInstance.patch(`/messages/${message._id}`, { text: newText.trim() });
+            const payload = { text: newText.trim() };
+
+            if (message.encryptedText && message.iv && message.receiverId) {
+                const crypto = useCryptoStore.getState();
+                const encrypted = await crypto.encryptOutgoing(
+                    newText.trim(),
+                    message.receiverId,
+                    message.senderId
+                );
+                if (encrypted) {
+                    payload.text = "";
+                    payload.encryptedText = encrypted.encryptedText;
+                    payload.iv = encrypted.iv;
+                    payload.protocolVersion = encrypted.protocolVersion;
+                }
+            }
+
+            await axiosInstance.patch(`/messages/${message._id}`, payload);
             toast.success("Message edited");
         } catch {
             toast.error("Failed to edit message");
+        }
+    }, []);
+
+    const handlePin = useCallback(async (messageId) => {
+        try {
+            const res = await axiosInstance.post(`/messages/${messageId}/pin`);
+            toast.success(res.data.isPinned ? "Message pinned" : "Message unpinned");
+        } catch {
+            toast.error("Failed to pin message");
         }
     }, []);
 
@@ -589,6 +626,10 @@ export function MessageList({ onReply }) {
                     }}
                     onReact={() => {
                         setReactionPickerMsgId(contextMenu.message._id);
+                        setContextMenu(null);
+                    }}
+                    onPin={() => {
+                        handlePin(contextMenu.message._id);
                         setContextMenu(null);
                     }}
                 />
