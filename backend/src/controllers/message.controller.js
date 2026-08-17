@@ -35,21 +35,31 @@ export async function getConversationsForSidebar(req, res) {
             $or: [{ requester: loggedInUserId }, { recipient: loggedInUserId }],
         });
 
-        const friendIds = new Set(
-            friendDocs.map((f) =>
-                f.requester.toString() === loggedInUserId.toString()
-                    ? f.recipient.toString()
-                    : f.requester.toString()
-            )
+        const friendIds = friendDocs.map((f) =>
+            f.requester.toString() === loggedInUserId.toString()
+                ? f.recipient.toString()
+                : f.requester.toString()
         );
 
-        if (friendIds.size === 0) {
+        if (friendIds.length === 0) {
             return res.status(200).json([]);
         }
 
         const allMessages = await Message.find({
-            $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }],
+            $or: [
+                { senderId: loggedInUserId, receiverId: { $in: friendIds } },
+                { receiverId: loggedInUserId, senderId: { $in: friendIds } },
+            ],
         }).sort({ createdAt: -1 });
+
+        const partners = await User.find({
+            _id: { $in: friendIds },
+        }).select("username displayName profilePic");
+
+        const partnerMap = {};
+        for (const p of partners) {
+            partnerMap[p._id.toString()] = p;
+        }
 
         const seen = new Set();
         const conversations = [];
@@ -60,11 +70,11 @@ export async function getConversationsForSidebar(req, res) {
                     ? msg.receiverId.toString()
                     : msg.senderId.toString();
 
-            if (!friendIds.has(partnerId) || seen.has(partnerId)) continue;
+            if (!friendIds.includes(partnerId) || seen.has(partnerId)) continue;
 
             seen.add(partnerId);
 
-            const partner = await User.findById(partnerId).select("username displayName profilePic");
+            const partner = partnerMap[partnerId];
             if (!partner) continue;
 
             conversations.push({
@@ -85,6 +95,7 @@ export async function getConversationsForSidebar(req, res) {
                     audio: msg.audio,
                     fileName: msg.fileName,
                     fileType: msg.fileType,
+                    isDeletedForEveryone: msg.isDeletedForEveryone,
                     readAt: msg.readAt,
                     createdAt: msg.createdAt,
                 },
@@ -121,7 +132,26 @@ export async function getMessages(req, res) {
             ],
         }).sort({ createdAt: 1 });
 
-        res.status(200).json(messages);
+        const messageIds = messages.filter((m) => m.replyTo).map((m) => m.replyTo);
+        const replyMessages = messageIds.length > 0
+            ? await Message.find({ _id: { $in: messageIds } }).select(
+                "_id senderId receiverId text encryptedText iv clientMessageId createdAt isDeletedForEveryone"
+              )
+            : [];
+        const replyMap = {};
+        for (const rm of replyMessages) {
+            replyMap[rm._id.toString()] = rm;
+        }
+
+        const enriched = messages.map((msg) => {
+            const obj = msg.toObject();
+            if (obj.replyTo && replyMap[obj.replyTo.toString()]) {
+                obj.replyToMessage = replyMap[obj.replyTo.toString()];
+            }
+            return obj;
+        });
+
+        res.status(200).json(enriched);
     } catch (error) {
         console.error("Error in getMessages:", error.message);
         res.status(500).json({ message: "Internal server error" });
@@ -130,7 +160,7 @@ export async function getMessages(req, res) {
 
 export async function sendMessage(req, res) {
     try {
-        const { text, encryptedText, iv, sequenceNumber, protocolVersion, clientMessageId } = req.body;
+        const { text, encryptedText, iv, sequenceNumber, protocolVersion, clientMessageId, replyTo } = req.body;
         const { id: receiverId } = req.params;
         const senderId = req.user._id;
 
@@ -206,11 +236,25 @@ export async function sendMessage(req, res) {
             messageData.text = text || "";
         }
 
+        if (replyTo) {
+            const repliedMsg = await Message.findById(replyTo).select("_id senderId receiverId");
+            if (repliedMsg) {
+                messageData.replyTo = replyTo;
+            }
+        }
+
         const newMessage = await Message.create(messageData);
 
         const receiverSocketId = getReceiverSocketId(receiverId);
         if (receiverSocketId) {
-            io.to(receiverSocketId).emit("newMessage", newMessage);
+            const msgObj = newMessage.toObject();
+            if (messageData.replyTo && msgObj.replyTo) {
+                const repliedFull = await Message.findById(msgObj.replyTo).select(
+                    "_id senderId receiverId text encryptedText iv clientMessageId createdAt isDeletedForEveryone"
+                );
+                if (repliedFull) msgObj.replyToMessage = repliedFull;
+            }
+            io.to(receiverSocketId).emit("newMessage", msgObj);
         }
 
         res.status(201).json(newMessage);
@@ -239,6 +283,142 @@ export async function markAsRead(req, res) {
         res.status(200).json({ ok: true });
     } catch (error) {
         console.error("Error in markAsRead:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function deleteMessage(req, res) {
+    try {
+        const { id: messageId } = req.params;
+        const { deleteForEveryone } = req.body;
+        const myId = req.user._id;
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        if (deleteForEveryone) {
+            if (message.senderId.toString() !== myId.toString()) {
+                return res.status(403).json({ message: "You can only delete your own messages" });
+            }
+
+            message.isDeletedForEveryone = true;
+            message.deletedAt = new Date();
+            message.text = "";
+            message.encryptedText = "";
+            message.iv = "";
+            await message.save();
+
+            const receiverSocketId = getReceiverSocketId(message.receiverId.toString());
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("messageDeleted", {
+                    messageId: message._id,
+                    deletedBy: myId,
+                });
+            }
+
+            return res.status(200).json({ ok: true, messageId: message._id });
+        }
+
+        await Message.findByIdAndDelete(messageId);
+        res.status(200).json({ ok: true, messageId });
+    } catch (error) {
+        console.error("Error in deleteMessage:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function editMessage(req, res) {
+    try {
+        const { id: messageId } = req.params;
+        const { text, encryptedText, iv, protocolVersion } = req.body;
+        const myId = req.user._id;
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        if (message.senderId.toString() !== myId.toString()) {
+            return res.status(403).json({ message: "You can only edit your own messages" });
+        }
+
+        if (encryptedText && iv) {
+            message.encryptedText = encryptedText;
+            message.iv = iv;
+            message.text = "";
+            message.protocolVersion = parseInt(protocolVersion) || message.protocolVersion;
+        } else if (text) {
+            message.text = text;
+        }
+
+        message.editedAt = new Date();
+        await message.save();
+
+        const receiverSocketId = getReceiverSocketId(message.receiverId.toString());
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("messageEdited", {
+                messageId: message._id,
+                text: message.text,
+                editedAt: message.editedAt,
+            });
+        }
+
+        res.status(200).json(message);
+    } catch (error) {
+        console.error("Error in editMessage:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+}
+
+export async function addReaction(req, res) {
+    try {
+        const { id: messageId } = req.params;
+        const { emoji } = req.body;
+        const myId = req.user._id;
+
+        if (!emoji || typeof emoji !== "string") {
+            return res.status(400).json({ message: "Emoji is required" });
+        }
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        const existingIdx = message.reactions.findIndex(
+            (r) => r.userId.toString() === myId.toString() && r.emoji === emoji
+        );
+
+        if (existingIdx >= 0) {
+            message.reactions.splice(existingIdx, 1);
+        } else {
+            const sameEmojiIdx = message.reactions.findIndex(
+                (r) => r.userId.toString() === myId.toString()
+            );
+            if (sameEmojiIdx >= 0) {
+                message.reactions.splice(sameEmojiIdx, 1);
+            }
+            message.reactions.push({ userId: myId, emoji });
+        }
+
+        await message.save();
+
+        const receiverId = message.senderId.toString() === myId.toString()
+            ? message.receiverId.toString()
+            : message.senderId.toString();
+        const receiverSocketId = getReceiverSocketId(receiverId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("messageReaction", {
+                messageId: message._id,
+                reactions: message.reactions,
+            });
+        }
+
+        res.status(200).json({ reactions: message.reactions });
+    } catch (error) {
+        console.error("Error in addReaction:", error.message);
         res.status(500).json({ message: "Internal server error" });
     }
 }

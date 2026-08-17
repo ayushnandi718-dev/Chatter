@@ -10,5 +10,3 @@ export const CryptoState = Object.freeze({
 
 export const PROTOCOL_VERSION = 1;
 export const HKDF_SALT = new TextEncoder().encode("chatter-e2ee-v1");
-export const HKDF_INFO = new TextEncoder().encode("chatter-session-key");
-export const FINGERPRINT_ALGO = "SHA-256";

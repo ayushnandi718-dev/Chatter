@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useChatStore } from "../../store/useChatStore";
 import { useSoundStore } from "../../store/useSoundStore";
-import { Send, Image, X, Loader2, Video, Plus, Mic, FileText, StopCircle } from "lucide-react";
+import { useCryptoStore } from "../../store/useCryptoStore";
+import { CryptoState } from "../../lib/crypto-states";
+import { Send, Image, X, Loader2, Video, Plus, Mic, FileText, StopCircle, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -42,6 +44,8 @@ export function ChatComposer() {
     const playKeystrokeSound = useSoundStore((state) => state.playKeystrokeSound);
     const sendTyping = useChatStore((state) => state.sendTyping);
     const sendStopTyping = useChatStore((state) => state.sendStopTyping);
+    const cryptoState = useCryptoStore((state) => state.cryptoState);
+    const lastError = useCryptoStore((state) => state.lastError);
 
     useEffect(() => {
         return () => {
@@ -315,6 +319,16 @@ export function ChatComposer() {
                             style={{ color: 'var(--text-muted)' }}>
                         <X className="h-3 w-3" />
                     </button>
+                </div>
+            )}
+
+            {cryptoState !== CryptoState.ENCRYPTED && cryptoState !== CryptoState.KEY_SETUP && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2"
+                     style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--danger)' }} />
+                    <span className="text-[10px]" style={{ color: 'var(--danger)' }}>
+                        {lastError || "Encryption not available. Messages cannot be sent."}
+                    </span>
                 </div>
             )}
 

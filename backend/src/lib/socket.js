@@ -19,6 +19,8 @@ const io = new Server(server, {
         origin: origins,
         credentials: true,
     },
+    pingTimeout: 20000,
+    pingInterval: 10000,
 });
 
 const userSocketMap = {};
@@ -36,7 +38,7 @@ export function emitToUser(userId, event, data) {
 
 io.on("connection", async (socket) => {
     const userId = socket.handshake.query.userId;
-    if (!userId || userId === "undefined") {
+    if (!userId || typeof userId !== "string" || !/^[0-9a-f]{24}$/i.test(userId)) {
         socket.disconnect();
         return;
     }
@@ -52,6 +54,7 @@ io.on("connection", async (socket) => {
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
     socket.on("typing", ({ to }) => {
+        if (!to || typeof to !== "string") return;
         const receiverSocketId = userSocketMap[to];
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("typing", { from: userId });
@@ -59,6 +62,7 @@ io.on("connection", async (socket) => {
     });
 
     socket.on("stopTyping", ({ to }) => {
+        if (!to || typeof to !== "string") return;
         const receiverSocketId = userSocketMap[to];
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("stopTyping", { from: userId });
@@ -66,7 +70,7 @@ io.on("connection", async (socket) => {
     });
 
     socket.on("disconnect", () => {
-        if (userId && userSocketMap[userId]) {
+        if (userId && userSocketMap[userId] === socket.id) {
             delete userSocketMap[userId];
         }
         io.emit("getOnlineUsers", Object.keys(userSocketMap));

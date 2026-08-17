@@ -5,6 +5,14 @@ import { useSoundStore } from "./useSoundStore";
 import { useCryptoStore } from "./useCryptoStore";
 import toast from "react-hot-toast";
 
+export const MessageStatus = Object.freeze({
+    SENDING: "SENDING",
+    SENT: "SENT",
+    DELIVERED: "DELIVERED",
+    READ: "READ",
+    FAILED: "FAILED",
+});
+
 export const useChatStore = create((set, get) => ({
     conversations: [],
     messages: [],
@@ -15,6 +23,7 @@ export const useChatStore = create((set, get) => ({
     searchQuery: "",
     typingUsers: [],
     decryptedPreviews: {},
+    pinnedMessageIds: [],
 
     setSearchQuery: (query) => set({ searchQuery: query }),
 
@@ -54,8 +63,8 @@ export const useChatStore = create((set, get) => ({
                     }).catch(() => {});
                 }
             }
-        } catch (error) {
-            console.error("Error fetching conversations:", error);
+        } catch (err) {
+            console.error("Error fetching conversations:", err);
         } finally {
             set({ isConversationsLoading: false });
         }
@@ -68,14 +77,18 @@ export const useChatStore = create((set, get) => ({
             const rawMessages = res.data;
 
             const cryptoStore = useCryptoStore.getState();
-
             const decryptedMessages = await cryptoStore.decryptMessages(rawMessages);
 
-            set({ messages: decryptedMessages });
+            const withStatus = decryptedMessages.map((msg) => ({
+                ...msg,
+                _status: msg.readAt ? MessageStatus.READ : MessageStatus.DELIVERED,
+            }));
+
+            set({ messages: withStatus });
 
             await axiosInstance.post(`/messages/read/${userId}`).catch(() => {});
-        } catch (error) {
-            console.error("Error fetching messages:", error);
+        } catch (err) {
+            console.error("Error fetching messages:", err);
             toast.error("Failed to load messages");
         } finally {
             set({ isMessagesLoading: false });
@@ -83,7 +96,7 @@ export const useChatStore = create((set, get) => ({
     },
 
     sendMessage: async (messageData) => {
-        const { selectedUser, messages, conversations } = get();
+        const { selectedUser, messages } = get();
         if (!selectedUser) return;
 
         const isFormData = messageData instanceof FormData;
@@ -91,14 +104,23 @@ export const useChatStore = create((set, get) => ({
             set({ isSendingMedia: true });
         }
 
+        let optimisticId = null;
+        let tempId = null;
+
         try {
             let payload;
 
             if (isFormData) {
                 payload = messageData;
+                tempId = "temp-" + Date.now();
             } else {
                 const cryptoStore = useCryptoStore.getState();
                 const authUser = useAuthStore.getState().authUser;
+
+                if (!authUser?._id) {
+                    toast.error("Not authenticated");
+                    return null;
+                }
 
                 const conversationId = [authUser._id, selectedUser._id].sort().join("-");
                 const seqNum = messages.filter(
@@ -113,21 +135,44 @@ export const useChatStore = create((set, get) => ({
                         seqNum
                     );
 
-                    if (encrypted) {
-                        payload = {
-                            encryptedText: encrypted.encryptedText,
-                            iv: encrypted.iv,
-                            sequenceNumber: encrypted.sequenceNumber,
-                            protocolVersion: encrypted.protocolVersion,
-                            clientMessageId: encrypted.messageId,
-                        };
-                    } else {
+                    if (encrypted?.error) {
+                        toast.error(encrypted.error);
+                        return null;
+                    }
+
+                    if (!encrypted) {
                         toast.error("Encryption failed. Message not sent.");
                         return null;
                     }
+
+                    payload = {
+                        encryptedText: encrypted.encryptedText,
+                        iv: encrypted.iv,
+                        sequenceNumber: encrypted.sequenceNumber,
+                        protocolVersion: encrypted.protocolVersion,
+                        clientMessageId: encrypted.messageId,
+                    };
                 } else {
                     payload = messageData;
                 }
+
+                tempId = "temp-" + Date.now();
+                optimisticId = tempId;
+
+                const optimisticMsg = {
+                    _id: tempId,
+                    senderId: authUser._id,
+                    receiverId: selectedUser._id,
+                    text: messageData.text || "",
+                    encryptedText: payload.encryptedText || "",
+                    iv: payload.iv || "",
+                    protocolVersion: payload.protocolVersion || 0,
+                    clientMessageId: payload.clientMessageId || "",
+                    _status: MessageStatus.SENDING,
+                    createdAt: new Date().toISOString(),
+                };
+
+                set((state) => ({ messages: [...state.messages, optimisticMsg] }));
             }
 
             const res = await axiosInstance.post(
@@ -145,21 +190,64 @@ export const useChatStore = create((set, get) => ({
                 newMsg.text = decrypted ?? "🔒 Could not decrypt";
             }
 
-            set({ messages: [...messages, newMsg] });
+            newMsg._status = MessageStatus.SENT;
+
+            set((state) => {
+                const msgs = state.messages.filter((m) => m._id !== optimisticId);
+                const isDuplicate = msgs.some(
+                    (m) => m.clientMessageId && m.clientMessageId === newMsg.clientMessageId && m._id !== newMsg._id
+                );
+                if (isDuplicate) return { messages: msgs };
+                return { messages: [...msgs, newMsg] };
+            });
 
             useSoundStore.getState().playSendSound();
             get().getConversations();
 
             return newMsg;
-        } catch (error) {
-            console.error("Error sending message:", error);
-            const msg = error.response?.data?.message || "Failed to send message";
+        } catch (err) {
+            console.error("Error sending message:", err);
+
+            if (optimisticId) {
+                set((state) => ({
+                    messages: state.messages.map((m) =>
+                        m._id === optimisticId ? { ...m, _status: MessageStatus.FAILED } : m
+                    ),
+                }));
+            }
+
+            const msg = err.response?.data?.message || "Failed to send message";
             toast.error(msg);
-            throw error;
+            throw err;
         } finally {
             if (isFormData) {
                 set({ isSendingMedia: false });
             }
+        }
+    },
+
+    retryMessage: async (failedMessage) => {
+        const { selectedUser } = get();
+        if (!selectedUser) return;
+
+        set((state) => ({
+            messages: state.messages.filter((m) => m._id !== failedMessage._id),
+        }));
+
+        return get().sendMessage({ text: failedMessage.text });
+    },
+
+    deleteMessage: async (messageId, deleteForEveryone = false) => {
+        try {
+            await axiosInstance.delete(`/messages/${messageId}`, {
+                data: { deleteForEveryone },
+            });
+            set((state) => ({
+                messages: state.messages.filter((m) => m._id !== messageId),
+            }));
+            get().getConversations();
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to delete message");
         }
     },
 
@@ -171,9 +259,12 @@ export const useChatStore = create((set, get) => ({
         socket.off("typing");
         socket.off("stopTyping");
         socket.off("messagesRead");
+        socket.off("messageDeleted");
+        socket.off("messageEdited");
+        socket.off("messageReaction");
 
         socket.on("newMessage", async (newMessage) => {
-            const { selectedUser, messages } = get();
+            const { selectedUser } = get();
 
             const isFromActiveChat =
                 selectedUser &&
@@ -184,9 +275,28 @@ export const useChatStore = create((set, get) => ({
                 newMessage.text = decrypted ?? "🔒 Could not decrypt";
             }
 
-            if (isFromActiveChat) {
-                set({ messages: [...messages, newMessage] });
-            }
+            newMessage._status = MessageStatus.DELIVERED;
+
+            set((state) => {
+                const clientMsgId = newMessage.clientMessageId;
+                if (clientMsgId) {
+                    const existingIdx = state.messages.findIndex(
+                        (m) => m.clientMessageId === clientMsgId && m._id !== newMessage._id
+                    );
+                    if (existingIdx >= 0) {
+                        const updated = [...state.messages];
+                        updated[existingIdx] = newMessage;
+                        return { messages: updated };
+                    }
+                }
+
+                if (!isFromActiveChat) return {};
+
+                const isDuplicate = state.messages.some((m) => m._id === newMessage._id);
+                if (isDuplicate) return {};
+
+                return { messages: [...state.messages, newMessage] };
+            });
 
             useSoundStore.getState().playReceiveSound();
             get().getConversations();
@@ -210,8 +320,35 @@ export const useChatStore = create((set, get) => ({
             set((state) => ({
                 messages: state.messages.map((msg) =>
                     msg.senderId === by && !msg.readAt
-                        ? { ...msg, readAt: new Date().toISOString() }
+                        ? { ...msg, readAt: new Date().toISOString(), _status: MessageStatus.READ }
                         : msg
+                ),
+            }));
+        });
+
+        socket.on("messageDeleted", ({ messageId, deletedBy }) => {
+            set((state) => ({
+                messages: state.messages.map((m) =>
+                    m._id === messageId
+                        ? { ...m, isDeletedForEveryone: true, text: "", encryptedText: "", iv: "" }
+                        : m
+                ),
+            }));
+            get().getConversations();
+        });
+
+        socket.on("messageEdited", ({ messageId, text, editedAt }) => {
+            set((state) => ({
+                messages: state.messages.map((m) =>
+                    m._id === messageId ? { ...m, text, editedAt } : m
+                ),
+            }));
+        });
+
+        socket.on("messageReaction", ({ messageId, reactions }) => {
+            set((state) => ({
+                messages: state.messages.map((m) =>
+                    m._id === messageId ? { ...m, reactions } : m
                 ),
             }));
         });
@@ -224,6 +361,9 @@ export const useChatStore = create((set, get) => ({
         socket.off("typing");
         socket.off("stopTyping");
         socket.off("messagesRead");
+        socket.off("messageDeleted");
+        socket.off("messageEdited");
+        socket.off("messageReaction");
     },
 
     sendTyping: (toUserId) => {

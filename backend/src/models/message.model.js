@@ -1,5 +1,20 @@
 import mongoose from "mongoose";
 
+const reactionSchema = new mongoose.Schema(
+    {
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+        },
+        emoji: {
+            type: String,
+            required: true,
+        },
+    },
+    { _id: false, timestamps: false }
+);
+
 const messageSchema = new mongoose.Schema(
     {
         senderId: {
@@ -63,6 +78,24 @@ const messageSchema = new mongoose.Schema(
         audio: {
             type: String,
             default: null,
+        },
+        replyTo: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Message",
+            default: null,
+        },
+        reactions: [reactionSchema],
+        editedAt: {
+            type: Date,
+            default: null,
+        },
+        deletedAt: {
+            type: Date,
+            default: null,
+        },
+        isDeletedForEveryone: {
+            type: Boolean,
+            default: false,
         },
         readAt: {
             type: Date,

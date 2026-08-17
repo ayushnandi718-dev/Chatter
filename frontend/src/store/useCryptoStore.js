@@ -18,16 +18,16 @@ import { CryptoState, PROTOCOL_VERSION } from "../lib/crypto-states";
 
 const IS_DEV = import.meta.env.DEV;
 
-function devLog(label, data) {
+function log(label, data) {
     if (IS_DEV) console.log(`[E2EE] ${label}`, data);
 }
 
-function devWarn(label, data) {
-    if (IS_DEV) console.warn(`[E2EE] ${label}`, data);
+function warn(label, data) {
+    console.warn(`[E2EE] ${label}`, data);
 }
 
-function devError(label, data) {
-    if (IS_DEV) console.error(`[E2EE] ${label}`, data);
+function error(label, data) {
+    console.error(`[E2EE] ${label}`, data);
 }
 
 export const useCryptoStore = create((set, get) => ({
@@ -35,26 +35,29 @@ export const useCryptoStore = create((set, get) => ({
     identityPublicKeyJwk: null,
     identityFingerprint: "",
     cryptoState: CryptoState.KEY_SETUP,
+    lastError: "",
     sessionKeys: {},
     friendsPublicKeys: {},
+
+    setLastError: (msg) => set({ lastError: msg }),
 
     ensureIdentityKey: async () => {
         const { identityPrivateKey } = get();
         if (identityPrivateKey) {
-            devLog("IDENTITY KEY ALREADY LOADED", { fingerprint: get().identityFingerprint });
+            log("IDENTITY KEY ALREADY LOADED", { fingerprint: get().identityFingerprint });
             return;
         }
 
-        devLog("IDENTITY KEY SETUP START", {});
+        log("IDENTITY KEY SETUP START", {});
 
         try {
-            devLog("RUNNING CRYPTO SELF-TEST", {});
+            log("RUNNING CRYPTO SELF-TEST", {});
             try {
                 await cryptoSelfTest();
-                devLog("CRYPTO SELF-TEST PASSED", {});
+                log("CRYPTO SELF-TEST PASSED", {});
             } catch (testError) {
-                devError("CRYPTO SELF-TEST FAILED", { message: testError.message });
-                set({ cryptoState: CryptoState.ENCRYPTION_FAILED });
+                error("CRYPTO SELF-TEST FAILED", { message: testError.message });
+                set({ cryptoState: CryptoState.ENCRYPTION_FAILED, lastError: "Crypto self-test failed: " + testError.message });
                 return;
             }
 
@@ -69,25 +72,35 @@ export const useCryptoStore = create((set, get) => ({
                     cryptoState: CryptoState.ENCRYPTED,
                 });
 
-                devLog("IDENTITY KEY LOADED FROM INDEXEDDB", { fingerprint: fp });
+                log("IDENTITY KEY LOADED FROM INDEXEDDB", { fingerprint: fp });
 
-                await axiosInstance.post("/users/upload-public-key", {
-                    publicKey: stored.publicJwk,
-                    fingerprint: fp,
-                }).catch((err) => devWarn("PUBLIC KEY UPLOAD FAILED", { error: err.message }));
+                try {
+                    await axiosInstance.post("/users/upload-public-key", {
+                        publicKey: stored.publicJwk,
+                        fingerprint: fp,
+                    });
+                    log("PUBLIC KEY UPLOADED", {});
+                } catch (uploadErr) {
+                    warn("PUBLIC KEY UPLOAD FAILED", { error: uploadErr.message, status: uploadErr.response?.status });
+                }
 
                 return;
             }
 
-            devLog("GENERATING NEW IDENTITY KEYPAIR", {});
+            log("GENERATING NEW IDENTITY KEYPAIR", {});
             const keyPair = await generateIdentityKeyPair();
             const pubJwk = keyPair.publicJwk;
             const fp = await fingerprintPublicKey(pubJwk);
 
-            await axiosInstance.post("/users/upload-public-key", {
-                publicKey: pubJwk,
-                fingerprint: fp,
-            });
+            try {
+                await axiosInstance.post("/users/upload-public-key", {
+                    publicKey: pubJwk,
+                    fingerprint: fp,
+                });
+                log("NEW PUBLIC KEY UPLOADED", {});
+            } catch (uploadErr) {
+                warn("NEW PUBLIC KEY UPLOAD FAILED", { error: uploadErr.message, status: uploadErr.response?.status });
+            }
 
             set({
                 identityPrivateKey: keyPair.privateKey,
@@ -96,33 +109,30 @@ export const useCryptoStore = create((set, get) => ({
                 cryptoState: CryptoState.ENCRYPTED,
             });
 
-            devLog("NEW IDENTITY KEYPAIR GENERATED", { fingerprint: fp });
-        } catch (error) {
-            devError("IDENTITY KEY SETUP FAILED", { name: error?.name, message: error?.message });
-            set({ cryptoState: CryptoState.KEY_SETUP });
+            log("NEW IDENTITY KEYPAIR GENERATED", { fingerprint: fp });
+        } catch (err) {
+            error("IDENTITY KEY SETUP FAILED", { name: err?.name, message: err?.message });
+            set({ cryptoState: CryptoState.KEY_SETUP, lastError: "Key setup failed: " + (err?.message || "unknown error") });
         }
     },
 
     fetchFriendPublicKey: async (userId) => {
         const { friendsPublicKeys } = get();
         if (friendsPublicKeys[userId]) {
-            devLog("FRIEND KEY CACHED", { userId });
+            log("FRIEND KEY CACHED", { userId });
             return friendsPublicKeys[userId];
         }
 
-        devLog("FETCHING FRIEND PUBLIC KEY", { userId });
+        log("FETCHING FRIEND PUBLIC KEY", { userId });
 
         try {
             const res = await axiosInstance.get(`/users/${userId}/public-key`);
             const keyData = res.data;
 
-            devLog("FRIEND KEY RECEIVED", {
+            log("FRIEND KEY RECEIVED", {
                 userId,
                 hasPublicKey: Boolean(keyData.publicKey),
                 publicKeyType: typeof keyData.publicKey,
-                publicKeyPreview: typeof keyData.publicKey === "string"
-                    ? keyData.publicKey.slice(0, 60) + "..."
-                    : typeof keyData.publicKey,
                 fingerprint: keyData.fingerprint,
             });
 
@@ -134,13 +144,13 @@ export const useCryptoStore = create((set, get) => ({
             }));
 
             return keyData;
-        } catch (error) {
-            devError("FRIEND KEY FETCH FAILED", {
+        } catch (err) {
+            error("FRIEND KEY FETCH FAILED", {
                 userId,
-                status: error.response?.status,
-                message: error.response?.data?.message || error.message,
+                status: err.response?.status,
+                message: err.response?.data?.message || err.message,
             });
-            if (error.response?.status === 404) {
+            if (err.response?.status === 404) {
                 set({ cryptoState: CryptoState.SESSION_REQUIRED });
             }
             return null;
@@ -150,53 +160,47 @@ export const useCryptoStore = create((set, get) => ({
     getOrCreateSessionKey: async (friendUserId, conversationId) => {
         const { sessionKeys, identityPrivateKey } = get();
 
+        if (!conversationId) {
+            error("NO CONVERSATION ID", {});
+            return null;
+        }
+
         if (sessionKeys[conversationId]) {
-            devLog("SESSION KEY FROM MEMORY", { conversationId });
+            log("SESSION KEY FROM MEMORY", { conversationId });
             return sessionKeys[conversationId];
         }
 
         let cached = null;
         try {
             cached = await loadSessionKey(conversationId);
-        } catch {
-            // ignore
+        } catch (e) {
+            warn("SESSION KEY LOAD FAILED", { conversationId, error: e.message });
         }
 
         if (cached) {
             set((state) => ({
                 sessionKeys: { ...state.sessionKeys, [conversationId]: cached },
             }));
-            devLog("SESSION KEY FROM INDEXEDDB", { conversationId });
+            log("SESSION KEY FROM INDEXEDDB", { conversationId });
             return cached;
         }
 
         if (!identityPrivateKey) {
-            devError("NO IDENTITY PRIVATE KEY", { cryptoState: get().cryptoState });
-            set({ cryptoState: CryptoState.KEY_SETUP });
+            error("NO IDENTITY PRIVATE KEY", { cryptoState: get().cryptoState });
+            set({ cryptoState: CryptoState.KEY_SETUP, lastError: "Identity key not loaded. Please refresh the page." });
             return null;
         }
 
-        devLog("DERIVING NEW SESSION KEY", { conversationId, friendUserId });
+        log("DERIVING NEW SESSION KEY", { conversationId, friendUserId });
 
         const friendKeyData = await get().fetchFriendPublicKey(friendUserId);
         if (!friendKeyData?.publicKey) {
-            devError("FRIEND PUBLIC KEY MISSING OR INVALID", {
-                friendUserId,
-                friendKeyData,
-            });
-            set({ cryptoState: CryptoState.SESSION_REQUIRED });
+            error("FRIEND PUBLIC KEY MISSING OR INVALID", { friendUserId, friendKeyData });
+            set({ cryptoState: CryptoState.SESSION_REQUIRED, lastError: "Friend has not set up encryption yet." });
             return null;
         }
 
         try {
-            devLog("IMPORTING FRIEND PUBLIC KEY FOR ECDH", {
-                friendUserId,
-                publicKeyType: typeof friendKeyData.publicKey,
-                publicKeyPreview: typeof friendKeyData.publicKey === "string"
-                    ? friendKeyData.publicKey.slice(0, 60) + "..."
-                    : "non-string",
-            });
-
             const sessionKey = await deriveSessionKey(
                 identityPrivateKey,
                 friendKeyData.publicKey,
@@ -208,43 +212,39 @@ export const useCryptoStore = create((set, get) => ({
                 cryptoState: CryptoState.ENCRYPTED,
             }));
 
-            devLog("SESSION KEY DERIVED SUCCESSFULLY", { conversationId });
+            log("SESSION KEY DERIVED SUCCESSFULLY", { conversationId });
 
-            await storeSessionKey(conversationId, sessionKey).catch(() => {});
+            try {
+                await storeSessionKey(conversationId, sessionKey);
+            } catch (storeErr) {
+                warn("SESSION KEY STORAGE FAILED", { conversationId, error: storeErr.message });
+            }
 
             return sessionKey;
-        } catch (error) {
-            devError("SESSION KEY DERIVATION FAILED", {
-                name: error?.name,
-                message: error?.message,
+        } catch (err) {
+            error("SESSION KEY DERIVATION FAILED", {
+                name: err?.name,
+                message: err?.message,
                 conversationId,
                 friendUserId,
             });
-            set({ cryptoState: CryptoState.ENCRYPTION_FAILED });
+            set({ cryptoState: CryptoState.ENCRYPTION_FAILED, lastError: "Key derivation failed: " + (err?.message || "unknown error") });
             return null;
         }
     },
 
     encryptOutgoing: async (plaintext, friendUserId, conversationId, sequenceNumber) => {
-        devLog("ENCRYPT OUTGOING START", { friendUserId, conversationId, sequenceNumber });
+        log("ENCRYPT OUTGOING START", { friendUserId, conversationId, sequenceNumber });
 
         const sessionKey = await get().getOrCreateSessionKey(friendUserId, conversationId);
         if (!sessionKey) {
-            devError("ENCRYPT ABORTED: NO SESSION KEY", { friendUserId, conversationId });
-            return null;
+            const reason = get().lastError || "Could not establish secure session";
+            error("ENCRYPT ABORTED: NO SESSION KEY", { friendUserId, conversationId, reason });
+            return { error: reason };
         }
 
         const messageId = generateMessageId();
         const authUser = useAuthStore.getState().authUser;
-
-        devLog("ENCRYPT METADATA", {
-            messageId,
-            conversationId,
-            senderId: authUser?._id,
-            recipientId: friendUserId,
-            sequenceNumber: sequenceNumber || 0,
-            protocolVersion: PROTOCOL_VERSION,
-        });
 
         const aad = createAAD({
             protocolVersion: PROTOCOL_VERSION,
@@ -258,11 +258,7 @@ export const useCryptoStore = create((set, get) => ({
         try {
             const result = await encryptMessage(sessionKey, plaintext, aad);
 
-            devLog("ENCRYPT SUCCESS", {
-                ciphertextLength: result.ciphertext?.length,
-                ivLength: result.iv?.length,
-                messageId,
-            });
+            log("ENCRYPT SUCCESS", { ciphertextLength: result.ciphertext?.length, ivLength: result.iv?.length });
 
             return {
                 encryptedText: result.ciphertext,
@@ -271,12 +267,9 @@ export const useCryptoStore = create((set, get) => ({
                 sequenceNumber: sequenceNumber || 0,
                 protocolVersion: PROTOCOL_VERSION,
             };
-        } catch (error) {
-            devError("ENCRYPT FAILED", {
-                name: error?.name,
-                message: error?.message,
-            });
-            return null;
+        } catch (err) {
+            error("ENCRYPT FAILED", { name: err?.name, message: err?.message });
+            return { error: "Encryption failed: " + (err?.message || "unknown error") };
         }
     },
 
@@ -292,22 +285,12 @@ export const useCryptoStore = create((set, get) => ({
         const authUser = useAuthStore.getState().authUser;
         const conversationId = [message.senderId, message.receiverId].sort().join("-");
 
-        devLog("DECRYPT INCOMING", {
-            messageId: message.clientMessageId || message._id,
-            conversationId,
-            senderId: message.senderId,
-            receiverId: message.receiverId,
-            sequenceNumber: message.sequenceNumber,
-            protocolVersion: message.protocolVersion,
-        });
+        const friendUserId = message.senderId === authUser._id ? message.receiverId : message.senderId;
 
-        const sessionKey = await get().getOrCreateSessionKey(
-            message.senderId === authUser._id ? message.receiverId : message.senderId,
-            conversationId
-        );
+        const sessionKey = await get().getOrCreateSessionKey(friendUserId, conversationId);
 
         if (!sessionKey) {
-            devError("DECRYPT ABORTED: NO SESSION KEY", { messageId: message._id });
+            error("DECRYPT ABORTED: NO SESSION KEY", { messageId: message._id });
             return null;
         }
 
@@ -322,12 +305,12 @@ export const useCryptoStore = create((set, get) => ({
 
         try {
             const plaintext = await decryptMessage(sessionKey, message.encryptedText, message.iv, aad);
-            devLog("DECRYPT SUCCESS", { messageId: message.clientMessageId || message._id });
+            log("DECRYPT SUCCESS", { messageId: message.clientMessageId || message._id });
             return plaintext;
-        } catch (error) {
-            devError("DECRYPT FAILED", {
-                name: error?.name,
-                message: error?.message,
+        } catch (err) {
+            error("DECRYPT FAILED", {
+                name: err?.name,
+                message: err?.message,
                 messageId: message.clientMessageId || message._id,
             });
             return null;

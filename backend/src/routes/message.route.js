@@ -4,6 +4,9 @@ import {
     getMessages,
     sendMessage,
     markAsRead,
+    deleteMessage,
+    editMessage,
+    addReaction,
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/upload.middleware.js";
@@ -27,5 +30,8 @@ router.get("/unread-count", protectRoute, async (req, res) => {
 router.get("/:id", protectRoute, getMessages);
 router.post("/send/:id", protectRoute, upload.single("file"), sendMessage);
 router.post("/read/:id", protectRoute, markAsRead);
+router.post("/:id/reaction", protectRoute, addReaction);
+router.patch("/:id", protectRoute, editMessage);
+router.delete("/:id", protectRoute, deleteMessage);
 
 export default router;
