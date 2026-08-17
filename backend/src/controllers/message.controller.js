@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import Friendship from "../models/friendship.model.js";
@@ -36,51 +35,53 @@ export async function getConversationsForSidebar(req, res) {
             $or: [{ requester: loggedInUserId }, { recipient: loggedInUserId }],
         });
 
-        const friendIds = new Set();
-        for (const f of friendDocs) {
-            const fid = f.requester.toString() === loggedInUserId.toString()
-                ? f.recipient.toString()
-                : f.requester.toString();
-            friendIds.add(fid);
+        const friendIds = new Set(
+            friendDocs.map((f) =>
+                f.requester.toString() === loggedInUserId.toString()
+                    ? f.recipient.toString()
+                    : f.requester.toString()
+            )
+        );
+
+        if (friendIds.size === 0) {
+            return res.status(200).json([]);
         }
 
-        const conversations = await Message.aggregate([
-            {
-                $match: {
-                    $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }],
+        const allMessages = await Message.find({
+            $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }],
+        }).sort({ createdAt: -1 });
+
+        const seen = new Set();
+        const conversations = [];
+
+        for (const msg of allMessages) {
+            const partnerId =
+                msg.senderId.toString() === loggedInUserId.toString()
+                    ? msg.receiverId.toString()
+                    : msg.senderId.toString();
+
+            if (!friendIds.has(partnerId) || seen.has(partnerId)) continue;
+
+            seen.add(partnerId);
+
+            const partner = await User.findById(partnerId).select("username displayName profilePic");
+            if (!partner) continue;
+
+            conversations.push({
+                _id: partnerId,
+                lastMessage: {
+                    _id: msg._id,
+                    senderId: msg.senderId,
+                    receiverId: msg.receiverId,
+                    text: msg.text,
+                    image: msg.image,
+                    video: msg.video,
+                    readAt: msg.readAt,
+                    createdAt: msg.createdAt,
                 },
-            },
-            { $sort: { createdAt: -1 } },
-            {
-                $group: {
-                    _id: {
-                        $cond: [{ $eq: ["$senderId", loggedInUserId] }, "$receiverId", "$senderId"],
-                    },
-                    lastMessage: { $first: "$$ROOT" },
-                },
-            },
-            {
-                $match: {
-                    _id: { $in: [...friendIds].map((id) => new mongoose.Types.ObjectId(id)) },
-                },
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "_id",
-                    foreignField: "_id",
-                    as: "partner",
-                },
-            },
-            { $unwind: "$partner" },
-            {
-                $project: {
-                    "partner.clerkId": 0,
-                    "partner.email": 0,
-                    "partner.fullName": 0,
-                },
-            },
-        ]);
+                partner,
+            });
+        }
 
         res.status(200).json(conversations);
     } catch (error) {
