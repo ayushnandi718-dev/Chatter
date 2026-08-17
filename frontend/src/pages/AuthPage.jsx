@@ -14,7 +14,7 @@ export default function AuthPage() {
                      style={{ borderBottom: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-2.5">
                         <img src="/logo.png" alt="Chatter" className="h-9 w-9 rounded-xl object-cover" />
-                        <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                        <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)', fontFamily: '"Bitcount Ink", system-ui' }}>
                             Chatter
                         </span>
                     </div>

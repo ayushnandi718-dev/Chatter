@@ -418,11 +418,15 @@ export const useChatStore = create((set, get) => ({
     },
 
     blockedUserIds: [],
+    blockedUsers: [],
 
     fetchBlockedUsers: async () => {
         try {
             const res = await axiosInstance.get("/blocks");
-            set({ blockedUserIds: res.data.blockedUserIds || [] });
+            set({
+                blockedUserIds: res.data.blockedUserIds || [],
+                blockedUsers: res.data.blockedUsers || [],
+            });
         } catch {
             // silent
         }
@@ -437,6 +441,7 @@ export const useChatStore = create((set, get) => ({
             }));
             toast.success("User blocked");
             get().getConversations();
+            get().fetchBlockedUsers();
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to block user");
         }
@@ -447,12 +452,61 @@ export const useChatStore = create((set, get) => ({
             await axiosInstance.delete(`/blocks/${userId}`);
             set((state) => ({
                 blockedUserIds: state.blockedUserIds.filter((id) => id !== userId),
+                blockedUsers: state.blockedUsers.filter((u) => u._id !== userId),
             }));
             toast.success("User unblocked");
             get().getConversations();
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to unblock user");
         }
+    },
+
+    sendReconnectRequest: async (userId) => {
+        try {
+            await axiosInstance.post(`/blocks/reconnect/${userId}`);
+            set((state) => ({
+                blockedUsers: state.blockedUsers.map((u) =>
+                    u._id === userId ? { ...u, reconnectStatus: "pending" } : u
+                ),
+            }));
+            toast.success("Reconnect request sent");
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to send reconnect request");
+        }
+    },
+
+    handleReconnectAccepted: () => {
+        get().fetchBlockedUsers();
+        get().getConversations();
+        toast("Reconnect request accepted", { duration: 5000 });
+    },
+
+    handleReconnectDeclined: () => {
+        get().fetchBlockedUsers();
+        toast("Reconnect request declined", { duration: 5000 });
+    },
+
+    subscribeToReconnectEvents: () => {
+        const socket = useAuthStore.getState().socket;
+        if (!socket) return;
+
+        socket.off("reconnectAccepted");
+        socket.off("reconnectDeclined");
+
+        socket.on("reconnectAccepted", () => {
+            get().handleReconnectAccepted();
+        });
+
+        socket.on("reconnectDeclined", () => {
+            get().handleReconnectDeclined();
+        });
+    },
+
+    unsubscribeFromReconnectEvents: () => {
+        const socket = useAuthStore.getState().socket;
+        if (!socket) return;
+        socket.off("reconnectAccepted");
+        socket.off("reconnectDeclined");
     },
 
     reportUser: async (userId, reason, description) => {

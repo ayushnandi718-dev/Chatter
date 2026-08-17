@@ -69,6 +69,14 @@ io.on("connection", async (socket) => {
         }
     });
 
+    socket.on("reconnectRequest", ({ to }) => {
+        if (!to || typeof to !== "string") return;
+        const receiverSocketId = userSocketMap[to];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("reconnectRequest", { from: userId });
+        }
+    });
+
     socket.on("disconnect", () => {
         if (userId && userSocketMap[userId] === socket.id) {
             delete userSocketMap[userId];

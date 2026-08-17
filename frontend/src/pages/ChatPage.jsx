@@ -18,6 +18,8 @@ export default function ChatPage() {
     const unsubscribeFromMessages = useChatStore((state) => state.unsubscribeFromMessages);
     const subscribeToFriendEvents = useFriendStore((state) => state.subscribeToFriendEvents);
     const unsubscribeFromFriendEvents = useFriendStore((state) => state.unsubscribeFromFriendEvents);
+    const subscribeToReconnectEvents = useChatStore((state) => state.subscribeToReconnectEvents);
+    const unsubscribeFromReconnectEvents = useChatStore((state) => state.unsubscribeFromReconnectEvents);
     const getFriends = useFriendStore((state) => state.getFriends);
     const getRequests = useFriendStore((state) => state.getRequests);
     const getConversations = useChatStore((state) => state.getConversations);
@@ -31,6 +33,7 @@ export default function ChatPage() {
     useEffect(() => {
         subscribeToMessages();
         subscribeToFriendEvents();
+        subscribeToReconnectEvents();
         getFriends();
         getRequests();
         getConversations();
@@ -38,8 +41,9 @@ export default function ChatPage() {
         return () => {
             unsubscribeFromMessages();
             unsubscribeFromFriendEvents();
+            unsubscribeFromReconnectEvents();
         };
-    }, [subscribeToMessages, unsubscribeFromMessages, subscribeToFriendEvents, unsubscribeFromFriendEvents, getFriends, getRequests, getConversations, fetchBlockedUsers]);
+    }, [subscribeToMessages, unsubscribeFromMessages, subscribeToFriendEvents, unsubscribeFromFriendEvents, subscribeToReconnectEvents, unsubscribeFromReconnectEvents, getFriends, getRequests, getConversations, fetchBlockedUsers]);
 
     return (
         <div className="flex h-screen w-screen items-center justify-center overflow-hidden">

@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
 import Friendship from "../models/friendship.model.js";
 import Block from "../models/block.model.js";
+import ReconnectRequest from "../models/reconnectRequest.model.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
 export async function sendRequest(req, res) {
@@ -107,6 +108,20 @@ export async function acceptRequest(req, res) {
 
         friendship.status = "accepted";
         await friendship.save();
+
+        await Block.findOneAndDelete({
+            $or: [
+                { blocker: friendship.requester, blocked: currentUserId },
+                { blocker: currentUserId, blocked: friendship.requester },
+            ],
+        });
+
+        await ReconnectRequest.findOneAndDelete({
+            $or: [
+                { requester: friendship.requester, recipient: currentUserId },
+                { requester: currentUserId, recipient: friendship.requester },
+            ],
+        });
 
         const acceptor = await User.findById(currentUserId).select("username displayName profilePic");
 
