@@ -1,185 +1,259 @@
 # Product Requirements Document (PRD) — Chatter
 
-> **Version:** 3.0.0
+> **Version:** 4.0.0
 > **Product:** Chatter — Private Real-Time Messaging Platform
 > **Owner:** Ayush Nandi
+> **Last Updated:** August 17, 2026
 
 ---
 
 ## 1. Vision
 
-**Chatter** is a full-stack real-time messaging platform with end-to-end encryption, anonymous identity, rich media sharing, and a premium UI. It delivers private 1-on-1 messaging with Discord-style usernames, friend management, block/report controls, and mobile-first responsive design.
+Chatter is a full-stack real-time messaging platform that combines WhatsApp's simplicity, Telegram's customization, Discord's identity model, and a privacy-first end-to-end encryption layer. It delivers private 1-on-1 messaging with anonymous usernames, friend management, rich media sharing, and a premium customizable UI — all without compromising user privacy.
+
+**Core principles:**
+- The server never sees plaintext message content
+- User identity is decoupled from personal information (email, full name)
+- Rich features without feature bloat
+- Mobile-first responsive design
 
 ---
 
-## 2. Core Value Propositions
-
-1. **End-to-End Encrypted Messaging** — ECDH P-256 + AES-256-GCM. Server never sees plaintext.
-2. **Anonymous Identity** — Discord-style usernames. Email, Clerk ID, and full name are never exposed to other users.
-3. **Rich Media Sharing** — Photos, videos, voice messages, documents (PDF/DOCX/XLSX/TXT), and any file up to 25MB.
-4. **Friend System** — Search by username, send/accept/reject requests, friends-only conversation list.
-5. **Block & Report** — Block users to hide conversations and prevent messages. Report with reason categories.
-6. **Premium UI** — 11 themes, 13 wallpapers, CSS variable design system, keyboard sound effects.
-7. **Mobile First** — Safe-area insets, touch targets, responsive 3-column layout.
-8. **Turnkey Deployment** — Docker multi-stage monolith on Render.
-
----
-
-## 3. Target Personas
+## 2. Target Personas
 
 | Persona | Goals | Features Used |
 |---|---|---|
 | **Casual User** | Intuitive chat with friends, share media | 1-on-1 chat, file/photo/video/voice sharing, themes, wallpapers |
-| **Privacy-Conscious User** | Secure messaging, anonymous identity | E2EE encryption, username-only identity, block/report |
-| **Power User** | Personalization, fast experience | 11 themes, keyboard sounds, responsive design |
+| **Privacy-Conscious User** | Secure messaging, anonymous identity | E2EE encryption, username-only identity, block/report, privacy settings |
+| **Power User** | Personalization, fast experience | 25 wallpapers, 11 themes, keyboard sounds, per-conversation settings |
 | **Developer/DevOps** | Easy deployment, clear contracts | Docker monolith, REST + WebSocket specs, Clerk webhooks |
 
 ---
 
-## 4. User Stories & Acceptance Criteria
+## 3. Core Features
 
-### 4.1 Authentication & Identity
-- **US-1.1:** Sign in via Google, GitHub, or Email/Password through Clerk.
-  - Backend webhook syncs user to MongoDB automatically.
-  - Profile completion modal for setting username and display name.
-- **US-1.2:** Set a unique Discord-style username and display name.
-  - Username is unique, lowercase, alphanumeric + underscores.
-  - Display name is what other users see in chat.
+### 3.1 Authentication & Identity
 
-### 4.2 Privacy Model
-- **US-2.1:** My email, Clerk ID, and full name are never visible to other users.
-  - API responses use `toPublicUser()` — only `_id`, `username`, `displayName`, `profilePic`, `about` are exposed.
-  - Socket.io userId validated against MongoDB on connection.
+| Feature | Description |
+|---|---|
+| Social Login | Google, GitHub, Email/Password via Clerk |
+| Webhook Sync | Automatic MongoDB user record creation/update/deletion via Clerk webhooks |
+| Anonymous Identity | Discord-style unique usernames (`/^[a-z0-9._]+$/`, 3-32 chars) and display names (up to 50 chars) |
+| Profile Fields | Username, displayName, about (120 char bio), profilePic |
+| Sensitive Field Stripping | Email, clerkId, fullName never exposed to other users |
 
-### 4.3 End-to-End Encryption
-- **US-3.1:** My text messages are encrypted so the server cannot read them.
-  - ECDH P-256 key exchange generates per-conversation AES-256-GCM session keys.
-  - Encrypted payload includes `encryptedText`, `iv`, `clientMessageId`, `sequenceNumber`, `protocolVersion`.
-  - Decrypt failure shows "[Encrypted]" fallback, never crashes the UI.
+### 3.2 End-to-End Encryption
 
-### 4.4 Messaging
-- **US-4.1:** Send text messages in real-time via Socket.io.
-  - Messages appear instantly for sender and receiver.
-  - Auto-scroll to bottom on new messages.
-- **US-4.2:** Send photos and videos up to 25MB.
-  - Inline preview before sending.
-  - Image lightbox viewer on click.
-  - Video with HTML5 controls.
-- **US-4.3:** Send voice messages.
-  - Record via MediaRecorder API with duration indicator.
-  - Playback inline with audio controls.
-- **US-4.4:** Send documents and files (PDF, DOCX, XLSX, TXT, ZIP, CSV).
-  - File icon, name, and size displayed.
-  - Download link on click.
-  - Auto-detected by MIME type (image, video, audio, or generic file).
+| Feature | Description |
+|---|---|
+| Key Agreement | ECDH P-256 elliptic curve Diffie-Hellman |
+| Key Derivation | HKDF-SHA256 with per-conversation info and fixed salt |
+| Symmetric Encryption | AES-256-GCM with 12-byte IV and 128-bit authentication tag |
+| AAD Binding | Protocol version, conversation ID, message ID, sender ID, recipient ID, sequence number |
+| Key Persistence | Identity keys and session keys stored in IndexedDB |
+| Self-Test | Automated crypto pipeline verification on application startup |
+| Key Fingerprints | SHA-256 hash of public key JWK, formatted in 4-character hex groups |
+| Fallback | Graceful handling of legacy unencrypted messages |
 
-### 4.5 Friend System
-- **US-5.1:** Search for users by username.
-- **US-5.2:** Send friend requests.
-- **US-5.3:** Accept or reject incoming requests.
-- **US-5.4:** Only friends appear in the conversation sidebar.
+### 3.3 Messaging
 
-### 4.6 Block & Report
-- **US-6.1:** Block a user from the chat header menu.
-  - Blocked user is hidden from sidebar.
-  - Messages from blocked user are not delivered.
-- **US-6.2:** Unblock a user.
-- **US-6.3:** Report a user with reason (spam, harassment, inappropriate content, other).
+| Feature | Description |
+|---|---|
+| Text Messages | Real-time via Socket.io with optimistic UI updates |
+| Delivery States | SENDING -> SENT -> DELIVERED -> READ (FAILED on error) |
+| Retry | One-click retry for failed messages |
+| Reply | Reply to any specific message in the conversation |
+| Reactions | Emoji reactions on messages |
+| Edit | Edit sent messages with timestamp |
+| Delete | Delete for self or delete for everyone |
+| Pin | Pin important messages (visible in pinned messages list) |
+| Deduplication | clientMessageId prevents duplicate messages from Socket.io retransmission |
 
-### 4.7 Personalization
-- **US-7.1:** Switch between 11 themes (Dark, Light, Cupcake, Synthwave, Retro, Cyberpunk, Valentine, Halloween, Forest, Aqua, Luxury).
-- **US-7.2:** Choose from 13 custom chat wallpapers.
-- **US-7.3:** Toggle mechanical keyboard sound effects.
+### 3.4 Media Sharing
 
-### 4.8 Mobile Experience
-- **US-8.1:** Responsive 3-column layout (sidebar | chat | details).
-- **US-8.2:** Safe-area insets for notch/toolbar devices.
-- **US-8.3:** 36px minimum touch targets.
-- **US-8.4:** Overscroll prevention and tap-highlight removal.
+| Feature | Description |
+|---|---|
+| Photos | Upload with inline preview, lightbox viewer on click |
+| Videos | HTML5 video player with controls |
+| Voice Messages | MediaRecorder API with duration indicator, inline playback |
+| Documents | PDF, DOCX, XLSX, TXT, CSV, ZIP — file icon, name, size, download |
+| Drag & Drop | Drag files onto the chat area to upload |
+| File Size Limit | 25MB maximum via Multer in-memory processing |
+| CDN | All media served via ImageKit global CDN |
 
----
+### 3.5 Friend System
 
-## 5. Functional Requirements Matrix
+| Feature | Description |
+|---|---|
+| Search | Search users by username or display name |
+| Send Request | Send friend request to any user |
+| Accept/Reject | Accept or decline incoming requests |
+| Cancel | Cancel outgoing pending requests |
+| Remove | Remove an existing friend |
+| Real-time Events | Friend request, accepted, and removed events via Socket.io |
+| Sidebar | Only friends appear in the conversation sidebar |
 
-| Module | ID | Feature | Priority | Status |
-|---|---|---|---|---|
-| Auth | AUTH-01 | Clerk authentication (social + email) | P0 | Done |
-| Auth | AUTH-02 | Webhook auto-sync to MongoDB | P0 | Done |
-| Auth | AUTH-03 | Username/display name setup modal | P0 | Done |
-| Privacy | PRV-01 | `toPublicUser()` field stripping | P0 | Done |
-| Privacy | PRV-02 | Socket.io userId validation | P0 | Done |
-| Privacy | PRV-03 | ReDoS-safe search regex | P1 | Done |
-| E2EE | E2E-01 | ECDH P-256 key pair generation | P0 | Done |
-| E2EE | E2E-02 | Per-conversation session key exchange | P0 | Done |
-| E2EE | E2E-03 | AES-256-GCM encrypt/decrypt | P0 | Done |
-| E2EE | E2E-04 | AAD binding (senderId + receiverId) | P0 | Done |
-| E2EE | E2E-05 | Key fingerprint verification | P1 | Done |
-| E2EE | E2E-06 | clientMessageId for AAD consistency | P0 | Done |
-| Chat | MSG-01 | Real-time text messaging (Socket.io) | P0 | Done |
-| Chat | MSG-02 | Conversation sidebar (aggregated) | P0 | Done |
-| Chat | MSG-03 | Typing indicators | P1 | Done |
-| Media | MED-01 | Photo upload (Multer + ImageKit) | P0 | Done |
-| Media | MED-02 | Video upload | P0 | Done |
-| Media | MED-03 | Voice message recording + upload | P1 | Done |
-| Media | MED-04 | Document/file upload (PDF, DOCX, etc.) | P1 | Done |
-| Media | MED-05 | Image lightbox viewer | P1 | Done |
-| Friends | FRD-01 | Search users by username | P0 | Done |
-| Friends | FRD-02 | Send/accept/reject friend requests | P0 | Done |
-| Friends | FRD-03 | Friends-only conversation sidebar | P0 | Done |
-| Safety | BLK-01 | Block user | P1 | Backend done |
-| Safety | BLK-02 | Unblock user | P1 | Backend done |
-| Safety | BLK-03 | Report user with reason | P1 | Backend done |
-| Safety | BLK-04 | Block/unblock UI in chat header | P1 | Pending |
-| UI | THM-01 | 11 dynamic themes (CSS variables) | P1 | Done |
-| UI | THM-02 | 13 chat wallpapers | P1 | Done |
-| UI | THM-03 | Keyboard sound effects | P2 | Done |
-| Mobile | MOB-01 | Responsive 3-column layout | P0 | Done |
-| Mobile | MOB-02 | Safe-area insets | P1 | Done |
-| Mobile | MOB-03 | Touch targets (36px) | P1 | Done |
-| Infra | INF-01 | Docker multi-stage monolith | P0 | Done |
-| Infra | INF-02 | Keep-alive cron (14min) | P1 | Done |
-| Infra | INF-03 | Render deployment | P0 | Done |
+### 3.6 Block & Report
 
----
+| Feature | Description |
+|---|---|
+| Block | Hide conversations and prevent message delivery from blocked users |
+| Unblock | Restore communication with previously blocked users |
+| Report | Submit reports with reason categories: spam, harassment, scam, impersonation, illegal, other |
+| Report Description | Optional 500-character description for additional context |
 
-## 6. Non-Functional Requirements
+### 3.7 Customization
 
-### 6.1 Performance
-- WebSocket message latency < 100ms.
-- MongoDB compound indexes on `{ senderId, receiverId, createdAt }`.
-- Media served via ImageKit global CDN with caching headers.
+| Feature | Description |
+|---|---|
+| Themes | 11 dynamic themes (Dark, Light, Cupcake, Synthwave, Retro, Cyberpunk, Valentine, Halloween, Forest, Aqua, Luxury) via CSS custom properties |
+| Wallpapers | 25 built-in wallpapers in 4 categories: solid (6), gradient (7), pattern (7), abstract (5) |
+| Custom Wallpapers | Upload up to 5 custom wallpapers (stored in localStorage as data URLs) |
+| Per-Conversation Wallpaper | Override the global wallpaper for individual conversations |
+| Brightness Control | Adjustable wallpaper overlay opacity |
+| Keyboard Sounds | Web Audio API synthesized sounds: mechanical keystroke, send chirp, receive chime |
 
-### 6.2 Security
-- Clerk session verification on every protected route.
-- Svix cryptographic webhook verification.
-- In-memory Multer processing (zero disk writes).
-- `toPublicUser()` strips sensitive fields at API layer.
-- Socket.io userId validated against MongoDB.
-- CORS localhost excluded in production.
-- Non-root Docker execution.
+### 3.8 Privacy & Settings
 
-### 6.3 Encryption
-- ECDH P-256 for key agreement (no RSA).
-- HKDF-SHA256 for key derivation.
-- AES-256-GCM for authenticated encryption.
-- Per-conversation session keys.
-- AAD binding prevents cross-conversation decryption.
-- Key fingerprints for verification.
+| Feature | Description |
+|---|---|
+| Read Receipts | Toggle to control whether others see when you read messages |
+| Online Status | Toggle to show or hide your online presence |
+| Profile Photo | Toggle to control profile photo visibility |
+| Message Sounds | Toggle notification sounds for incoming messages |
+| Typing Sounds | Toggle sound effects while typing |
+| Mute Conversations | Mute individual conversations with optional duration |
+| Pin Conversations | Pin conversations to the top of the sidebar |
+| Archive Conversations | Archive conversations to hide from the main list |
 
-### 6.4 Mobile
-- `viewport-fit=cover` for notch devices.
-- `safe-area-inset-*` CSS variables.
-- `overscroll-behavior: none`.
-- Minimum 36px touch targets.
+### 3.9 Real-Time Features
+
+| Feature | Description |
+|---|---|
+| Typing Indicators | See when the other user is typing |
+| Online Presence | Real-time online user tracking |
+| Read Receipts | See when messages have been read |
+| Browser Notifications | Push notifications for messages when the tab is in the background |
 
 ---
 
-## 7. Success Metrics
+## 4. Message Types
+
+| Type | Fields | Description |
+|---|---|---|
+| Text | `encryptedText`, `iv`, `text` | Encrypted or plaintext text content |
+| Image | `image`, `fileName`, `fileType`, `fileSize` | Photo with ImageKit URL |
+| Video | `video`, `fileName`, `fileType`, `fileSize` | Video with ImageKit URL |
+| Audio | `audio`, `fileName`, `fileType`, `fileSize` | Voice message or audio file |
+| Document | `file`, `fileName`, `fileType`, `fileSize` | Any non-media file type |
+
+---
+
+## 5. Message Lifecycle
+
+```
+User types message
+  -> Client encrypts (AES-256-GCM) with session key and AAD
+  -> Optimistic UI insertion (status: SENDING)
+  -> POST /api/messages/send/:id with ciphertext
+  -> Server stores ciphertext in MongoDB
+  -> Socket.io emits "newMessage" to recipient
+  -> Server responds with created message
+  -> Client status updates: SENDING -> SENT
+  -> Recipient decrypts with session key and AAD
+  -> Recipient opens chat -> POST /api/messages/read/:id
+  -> Server updates readAt timestamp
+  -> Socket.io emits "messagesRead" to sender
+  -> Sender status updates: SENT -> DELIVERED -> READ
+```
+
+---
+
+## 6. Message Actions
+
+| Action | Method | Description |
+|---|---|---|
+| Reply | `replyTo` field | Reference another message by ObjectId |
+| React | POST `/:id/reaction` | Add or toggle emoji reaction |
+| Edit | PATCH `/:id` | Update message text, sets `editedAt` timestamp |
+| Delete | DELETE `/:id` | Soft-delete with `deletedAt` and `isDeletedForEveryone` |
+| Pin | POST `/:id/pin` | Toggle pin status, sets `pinnedAt` timestamp |
+| Forward | Not implemented | Planned for future release |
+
+---
+
+## 7. Privacy Model
+
+### Data Visibility
+
+| Field | Visible to Owner | Visible to Others |
+|---|---|---|
+| `_id` | Yes | Yes |
+| `username` | Yes | Yes |
+| `displayName` | Yes | Yes |
+| `profilePic` | Yes | Yes (if `showProfilePhoto` enabled) |
+| `about` | Yes | Yes |
+| `email` | Yes | **Never** |
+| `clerkId` | Yes | **Never** |
+| `fullName` | Yes | **Never** |
+| `identityPublicKey` | Yes | Via `/users/:id/public-key` (friends only) |
+
+### Encryption Model
+
+- All text messages are encrypted client-side before transmission
+- The server stores only ciphertext (`encryptedText` + `iv`)
+- Media files (images, videos, audio, documents) are **not** end-to-end encrypted (served via ImageKit CDN)
+- Session keys are derived per-conversation and stored only in the client's IndexedDB
+- AAD binding prevents ciphertext from being decrypted with a different conversation's key
+
+---
+
+## 8. Explicit Scope Exclusions
+
+The following features are **not** in scope for Chatter:
+
+- **Voice/video calling** — No WebRTC or VoIP functionality
+- **Group messaging** — 1-on-1 conversations only
+- **Message forwarding** — Planned but not implemented
+- **End-to-end encrypted media** — Media files are stored on ImageKit without encryption
+- **Multi-device sync** — Each browser has its own key pair and session keys
+- **Disappearing messages** — No auto-delete or timer functionality
+
+---
+
+## 9. Non-Functional Requirements
+
+### Performance
+- WebSocket message latency < 100ms under normal conditions
+- MongoDB compound indexes on `{ senderId, receiverId, createdAt }` and reverse
+- Media served via ImageKit global CDN with caching headers
+- Optimistic UI updates for instant perceived responsiveness
+
+### Security
+- Clerk session verification on every protected route
+- Svix cryptographic webhook signature verification
+- In-memory Multer processing (zero disk writes)
+- CORS restricts to `FRONTEND_URL` in production
+- Socket.io validates userId against MongoDB on connection
+- Non-root Docker execution
+
+### Mobile
+- `viewport-fit=cover` for notch devices
+- `safe-area-inset-*` CSS variables
+- `overscroll-behavior: none`
+- Minimum 36px touch targets
+- Responsive 3-column layout
+
+---
+
+## 10. Success Metrics
 
 | Metric | Target |
 |---|---|
-| Message delivery latency | < 100ms |
+| Message delivery latency | < 100ms (p95) |
 | Delivery success rate | 99.9% |
-| Identity sync rate | 100% (Clerk <-> MongoDB) |
+| Identity sync rate | 100% (Clerk to MongoDB) |
 | E2EE encryption success | 99.9% |
+| Crypto self-test pass rate | 100% on supported browsers |
 | Mobile usability | All touch targets >= 36px |
+| Mobile layout | Functional at 320px viewport width |

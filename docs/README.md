@@ -8,8 +8,8 @@ All project specifications, architectural blueprints, and developer guides for t
 
 | Document | Description |
 |---|---|
-| [PRD.md](./PRD.md) | **Product Requirements Document** — Vision, personas, user stories with acceptance criteria, functional matrix, NFRs, privacy model, and success KPIs. |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | **System Architecture** — Topology, E2EE crypto layer (ECDH + AES-256-GCM), Socket.io presence engine, database ERD, security architecture, Docker deployment. |
-| [API_SPEC.md](./API_SPEC.md) | **API & WebSocket Specifications** — REST endpoint contracts, E2EE message fields, block/report endpoints, Socket.io event catalog, payload schemas. |
-| [PROJECT_REVIEW.md](./PROJECT_REVIEW.md) | **Project Review & Status** — Completed audit, all bug fixes, security hardening, E2EE implementation status. |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | **Developer Guide** — Local setup, environment config, database seeding, Clerk webhook testing, Docker build. |
+| [PRD.md](./PRD.md) | **Product Requirements Document v4.0** — Vision, personas, core features, message types and lifecycle, privacy model, success metrics. |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | **System Architecture v4.0** — System topology, E2EE crypto architecture (ECDH + HKDF + AES-GCM), database schema (7 models), Socket.io event system, security layers, deployment. |
+| [API_SPEC.md](./API_SPEC.md) | **API Specification v4.0** — Complete REST endpoint contracts (auth, users, messages, friends, blocks, preferences), Socket.io event catalog, payload schemas. |
+| [PROJECT_REVIEW.md](./PROJECT_REVIEW.md) | **Project Review** — Current state assessment, completed features, E2EE implementation status, security audit, performance notes, known issues, future roadmap. |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | **Contributing Guide** — Development setup, code style, branch naming, commit conventions, testing, PR process, security considerations. |
