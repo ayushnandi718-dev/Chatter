@@ -244,9 +244,22 @@ function HoverActionBar({ message, isOutgoing, onReply, onReact, onPin, onEdit, 
     const ref = useRef(null);
     const [visible, setVisible] = useState(false);
     const lastTapRef = useRef(0);
+    const hideTimeoutRef = useRef(null);
 
-    const show = () => setVisible(true);
-    const hide = () => setVisible(false);
+    const show = () => {
+        setVisible(true);
+        if (hideTimeoutRef.current) {
+            clearTimeout(hideTimeoutRef.current);
+            hideTimeoutRef.current = null;
+        }
+    };
+
+    const hide = useCallback(() => {
+        hideTimeoutRef.current = setTimeout(() => {
+            setVisible(false);
+            hideTimeoutRef.current = null;
+        }, 150);
+    }, []);
 
     const handleTouchEnd = useCallback((e) => {
         const now = Date.now();
@@ -268,21 +281,6 @@ function HoverActionBar({ message, isOutgoing, onReply, onReact, onPin, onEdit, 
             />
         );
     }
-
-    const iconBtn = (icon, label, onClick, danger = false) => (
-        <button
-            onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className="flex items-center justify-center h-7 w-7 rounded-full transition-all"
-            style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: danger ? "var(--danger)" : "var(--text-primary)",
-            }}
-            title={label}
-        >
-            {icon}
-        </button>
-    );
 
     return (
         <div
