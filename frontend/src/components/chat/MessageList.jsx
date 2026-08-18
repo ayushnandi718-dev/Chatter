@@ -559,7 +559,7 @@ export function MessageList({ onReply }) {
                                         <div
                                             className="rounded-full p-1.5 cursor-pointer"
                                             style={{
-                                                background: "var(--bg-elevished)",
+                                                background: "var(--bg-elevated)",
                                                 border: "1px solid var(--border)",
                                             }}
                                             onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
