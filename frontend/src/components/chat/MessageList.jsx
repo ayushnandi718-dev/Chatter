@@ -258,7 +258,7 @@ function HoverActionBar({ message, isOutgoing, onReply, onReact, onPin, onEdit, 
         hideTimeoutRef.current = setTimeout(() => {
             setVisible(false);
             hideTimeoutRef.current = null;
-        }, 150);
+        }, 300);
     }, []);
 
     const handleTouchEnd = useCallback((e) => {
