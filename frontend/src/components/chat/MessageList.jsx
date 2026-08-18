@@ -554,7 +554,6 @@ export function MessageList({ onReply }) {
                                     <div
                                         className="absolute right-2 top-2 select-none"
                                         style={{ zIndex: 10 }}
-                                        onClick={() => setContextMenu(null)}
                                     >
                                         <div
                                             className="rounded-full p-1.5 cursor-pointer"
