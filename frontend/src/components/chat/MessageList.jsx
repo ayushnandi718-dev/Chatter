@@ -572,8 +572,7 @@ export function MessageList({ onReply }) {
 
                                 {contextMenu && (
                                     <div
-                                        className="fixed z-[100] bottom-[8px] right-2 w-48 rounded-md overflow-hidden bg-[var(--bg-surface)] border border-[var(--border)] shadow-md"
-                                        style={{ display: 'block' }}
+                                        className="p-2 rounded-md bg-[var(--bg-surface)] border border-[var(--border)] shadow-md w-44 shadow-xs"
                                         onClick={(e) => setContextMenu(null)}
                                     >
                                         <div
