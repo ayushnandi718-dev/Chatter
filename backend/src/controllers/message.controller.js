@@ -160,12 +160,19 @@ export async function getMessages(req, res) {
         const messageIds = messages.filter((m) => m.replyTo).map((m) => m.replyTo);
         const replyMessages = messageIds.length > 0
             ? await Message.find({ _id: { $in: messageIds } }).select(
-                "_id senderId receiverId text encryptedText iv clientMessageId createdAt isDeletedForEveryone image video audio file fileName"
+                "_id senderId receiverId encryptedText iv clientMessageId createdAt isDeletedForEveryone image video audio file fileName"
               )
             : [];
         const replyMap = {};
         for (const rm of replyMessages) {
-            replyMap[rm._id.toString()] = rm;
+            const senderStr = rm.senderId.toString();
+            const receiverStr = rm.receiverId.toString();
+            if (
+                (senderStr === myId && receiverStr === userToChatId) ||
+                (senderStr === userToChatId && receiverStr === myId)
+            ) {
+                replyMap[rm._id.toString()] = rm;
+            }
         }
 
         const enriched = messages.map((msg) => {
@@ -264,25 +271,32 @@ export async function sendMessage(req, res) {
         if (replyTo) {
             const repliedMsg = await Message.findById(replyTo).select("_id senderId receiverId");
             if (repliedMsg) {
-                messageData.replyTo = replyTo;
+                const replyBelongsToConversation =
+                    (repliedMsg.senderId.toString() === senderId && repliedMsg.receiverId.toString() === receiverId) ||
+                    (repliedMsg.senderId.toString() === receiverId && repliedMsg.receiverId.toString() === senderId);
+                if (replyBelongsToConversation) {
+                    messageData.replyTo = replyTo;
+                }
             }
         }
 
         const newMessage = await Message.create(messageData);
 
-        const receiverSocketId = getReceiverSocketId(receiverId);
-        if (receiverSocketId) {
-            const msgObj = newMessage.toObject();
-            if (messageData.replyTo && msgObj.replyTo) {
-                const repliedFull = await Message.findById(msgObj.replyTo).select(
-                    "_id senderId receiverId text encryptedText iv clientMessageId createdAt isDeletedForEveryone image video audio file fileName"
-                );
-                if (repliedFull) msgObj.replyToMessage = repliedFull;
-            }
-            io.to(receiverSocketId).emit("newMessage", msgObj);
+        const newMsgObj = newMessage.toObject();
+
+        if (messageData.replyTo && newMsgObj.replyTo) {
+            const repliedFull = await Message.findById(newMsgObj.replyTo).select(
+                "_id senderId receiverId encryptedText iv clientMessageId createdAt isDeletedForEveryone image video audio file fileName"
+            );
+            if (repliedFull) newMsgObj.replyToMessage = repliedFull;
         }
 
-        res.status(201).json(newMessage);
+        const receiverSocketId = getReceiverSocketId(receiverId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("newMessage", newMsgObj);
+        }
+
+        res.status(201).json(newMsgObj);
     } catch (error) {
         console.error("Error in sendMessage:", error.message);
         console.error("Full error:", error);

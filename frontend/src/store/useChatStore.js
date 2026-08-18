@@ -228,6 +228,11 @@ export const useChatStore = create((set, get) => ({
                 newMsg.text = decrypted ?? "🔒 Could not decrypt";
             }
 
+            if (newMsg.replyToMessage?.encryptedText && newMsg.replyToMessage?.iv) {
+                const decryptedReply = await useCryptoStore.getState().decryptIncoming(newMsg.replyToMessage);
+                newMsg.replyToMessage.text = decryptedReply ?? "🔒 Could not decrypt";
+            }
+
             newMsg._status = MessageStatus.SENT;
 
             set((state) => {
@@ -236,6 +241,12 @@ export const useChatStore = create((set, get) => ({
                     (m) => m.clientMessageId && m.clientMessageId === newMsg.clientMessageId && m._id !== newMsg._id
                 );
                 if (isDuplicate) return { messages: msgs };
+
+                const optimisticMsg = state.messages.find((m) => m._id === optimisticId);
+                if (optimisticMsg?.replyToMessage && !newMsg.replyToMessage) {
+                    newMsg.replyToMessage = optimisticMsg.replyToMessage;
+                }
+
                 return { messages: [...msgs, newMsg] };
             });
 
@@ -273,7 +284,11 @@ export const useChatStore = create((set, get) => ({
             messages: state.messages.filter((m) => m._id !== failedMessage._id),
         }));
 
-        return get().sendMessage({ text: failedMessage.text });
+        const retryData = { text: failedMessage.text };
+        if (failedMessage.replyTo) {
+            retryData.replyTo = failedMessage.replyTo;
+        }
+        return get().sendMessage(retryData);
     },
 
     deleteMessage: async (messageId, deleteForEveryone = false) => {
@@ -342,6 +357,7 @@ export const useChatStore = create((set, get) => ({
 
         socket.on("newMessage", async (newMessage) => {
             const { selectedUser } = get();
+            const currentUser = useAuthStore.getState().authUser;
 
             const isFromActiveChat =
                 selectedUser &&
@@ -349,12 +365,17 @@ export const useChatStore = create((set, get) => ({
 
             if (newMessage.encryptedText && newMessage.iv) {
                 const decrypted = await useCryptoStore.getState().decryptIncoming(newMessage);
-                newMessage.text = decrypted ?? "\ud83d\udd12 Could not decrypt";
+                newMessage.text = decrypted ?? "🔒 Could not decrypt";
+            }
+
+            if (newMessage.replyToMessage?.encryptedText && newMessage.replyToMessage?.iv) {
+                const decryptedReply = await useCryptoStore.getState().decryptIncoming(newMessage.replyToMessage);
+                newMessage.replyToMessage.text = decryptedReply ?? "🔒 Could not decrypt";
             }
 
             newMessage._status = MessageStatus.DELIVERED;
 
-            if (newMessage.senderId !== authUser._id) {
+            if (newMessage.senderId !== currentUser?._id) {
                 socket.emit("messageDelivered", {
                     to: newMessage.senderId,
                     messageId: newMessage._id,

@@ -23,6 +23,8 @@ export function ReplyPreview({ replyingTo, senderName, onCancel }) {
     return (
         <div
             className="flex items-center gap-2.5 px-3 py-2 rounded-t-lg reply-preview-enter"
+            role="region"
+            aria-label="Reply preview"
             style={{
                 background: "var(--bg-surface)",
                 borderLeft: "3px solid var(--accent)",
@@ -43,6 +45,7 @@ export function ReplyPreview({ replyingTo, senderName, onCancel }) {
             <button
                 onClick={onCancel}
                 className="h-6 w-6 flex items-center justify-center rounded-full shrink-0 transition-colors"
+                aria-label="Cancel reply"
                 style={{ color: "var(--text-muted)" }}
                 onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}

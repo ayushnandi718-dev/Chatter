@@ -2,12 +2,33 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useChatStore, MessageStatus } from "../../store/useChatStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCryptoStore } from "../../store/useCryptoStore";
+import { useFriendStore } from "../../store/useFriendStore";
 import { MediaModal } from "./MediaModal";
 import { ImageViewer } from "./ImageViewer";
-import { Loader2, Download, Check, CheckCheck, AlertCircle, Reply, Copy, Trash2, RotateCcw, Pencil, Pin, Info } from "lucide-react";
+import { Loader2, Download, Check, CheckCheck, AlertCircle, Reply, Copy, Trash2, RotateCcw, Pencil, Pin, Info, Image, Video, Mic, FileText } from "lucide-react";
 import toast from "react-hot-toast";
 import { axiosInstance } from "../../lib/axios";
 import { PromptModal } from "./PromptModal";
+
+function getReplySenderName(senderId) {
+    const authUser = useAuthStore.getState().authUser;
+    if (senderId === authUser?._id) return "You";
+    const friends = useFriendStore.getState().friends;
+    const f = friends.find((f) => f._id === senderId);
+    return f?.displayName || f?.username || "User";
+}
+
+function getReplyPreview(replyToMessage) {
+    if (!replyToMessage) return null;
+    if (replyToMessage.isDeletedForEveryone) return { icon: null, text: "Message deleted" };
+    if (replyToMessage.image) return { icon: <Image className="h-3 w-3 shrink-0" style={{ color: "var(--accent)" }} />, text: "Photo" };
+    if (replyToMessage.video) return { icon: <Video className="h-3 w-3 shrink-0" style={{ color: "var(--accent)" }} />, text: "Video" };
+    if (replyToMessage.audio) return { icon: <Mic className="h-3 w-3 shrink-0" style={{ color: "var(--accent)" }} />, text: "Voice message" };
+    if (replyToMessage.file) return { icon: <FileText className="h-3 w-3 shrink-0" style={{ color: "var(--accent)" }} />, text: replyToMessage.fileName || "File" };
+    if (replyToMessage.text) return { icon: null, text: replyToMessage.text };
+    if (replyToMessage.encryptedText) return { icon: null, text: "Encrypted message" };
+    return { icon: null, text: "Message" };
+}
 
 function formatTime(timestamp) {
     if (!timestamp) return "";
@@ -159,6 +180,7 @@ function HoverBar({ isOutgoing, onReact, onReply, onMore }) {
                 onClick={(e) => { e.stopPropagation(); onReply(); }}
                 className="flex items-center justify-center h-[28px] w-[28px] rounded-full transition-all hover:scale-110"
                 style={btnStyle}
+                aria-label="Reply to message"
                 onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
                 onMouseLeave={(e) => e.currentTarget.style.background = btnStyle.background}
             >
@@ -225,6 +247,7 @@ function FloatingMenu({ message, isOutgoing, onClose, onReply, onReact, onPin, o
     menuItems.push(
         <button key="reply" onClick={() => { onReply(); onClose(); }}
             className={itemBase} style={itemColor}
+            aria-label="Reply to message"
             onMouseEnter={itemHover} onMouseLeave={itemLeave}>
             <Reply className="h-[13px] w-[13px]" style={{ color: "var(--accent)" }} />
             Reply
@@ -356,42 +379,6 @@ function FloatingMenu({ message, isOutgoing, onClose, onReply, onReact, onPin, o
             onMouseDown={(e) => e.stopPropagation()}
         >
             {menuItems}
-        </div>
-    );
-}
-
-function ReplyPreview({ replyToMessage, onCancel }) {
-    if (!replyToMessage) return null;
-    let preview = "";
-    if (replyToMessage.isDeletedForEveryone) {
-        preview = "Message deleted";
-    } else if (replyToMessage.text) {
-        preview = replyToMessage.text;
-    } else if (replyToMessage.encryptedText) {
-        preview = "🔒 Encrypted message";
-    } else if (replyToMessage.image) {
-        preview = "📷 Photo";
-    } else if (replyToMessage.video) {
-        preview = "🎬 Video";
-    } else if (replyToMessage.audio) {
-        preview = "🎤 Audio";
-    } else if (replyToMessage.file) {
-        preview = "📎 " + (replyToMessage.fileName || "File");
-    }
-    const authUser = useAuthStore.getState().authUser;
-    const isOwn = replyToMessage.senderId === authUser?._id;
-    return (
-        <div className="flex items-center gap-2 mb-2 rounded-lg px-3 py-2"
-            style={{ background: "var(--bg-elevated)", borderLeft: "3px solid var(--accent)" }}>
-            <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-semibold" style={{ color: "var(--accent)" }}>
-                    {isOwn ? "You" : "Replying to message"}
-                </p>
-                <p className="text-[10px] truncate" style={{ color: "var(--text-muted)" }}>{preview}</p>
-            </div>
-            <button onClick={onCancel}
-                className="h-5 w-5 flex items-center justify-center rounded-full shrink-0"
-                style={{ color: "var(--text-muted)" }}>✕</button>
         </div>
     );
 }
@@ -664,39 +651,39 @@ export function MessageList({ onReply, onMessageInfo }) {
                                         </p>
                                     ) : (
                                         <>
-                                            {msg.replyTo && msg.replyToMessage && (
-                                                <button
-                                                    className="mb-1.5 rounded-md px-2 py-1.5 w-full text-left transition-colors"
-                                                    style={{
-                                                        background: isOutgoing ? "rgba(255,255,255,0.1)" : "var(--bg-elevated)",
-                                                        borderLeft: "3px solid " + (isOutgoing ? "rgba(255,255,255,0.4)" : "var(--accent)"),
-                                                    }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const origEl = document.getElementById(`msg-${msg.replyTo}`);
-                                                        if (origEl) {
-                                                            origEl.scrollIntoView({ behavior: "smooth", block: "center" });
-                                                            origEl.classList.add("msg-highlight");
-                                                            setTimeout(() => origEl.classList.remove("msg-highlight"), 1500);
-                                                        }
-                                                    }}
-                                                >
-                                                    {msg.replyToMessage.isDeletedForEveryone ? (
+                                            {msg.replyTo && msg.replyToMessage && (() => {
+                                                const replyPreview = getReplyPreview(msg.replyToMessage);
+                                                const replySenderName = getReplySenderName(msg.replyToMessage.senderId);
+                                                return (
+                                                    <button
+                                                        className="mb-1.5 rounded-md px-2 py-1.5 w-full text-left transition-colors"
+                                                        style={{
+                                                            background: isOutgoing ? "rgba(255,255,255,0.1)" : "var(--bg-elevated)",
+                                                            borderLeft: "3px solid " + (isOutgoing ? "rgba(255,255,255,0.4)" : "var(--accent)"),
+                                                        }}
+                                                        aria-label={`Reply to ${replySenderName}'s message`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const origEl = document.getElementById(`msg-${msg.replyTo}`);
+                                                            if (origEl) {
+                                                                origEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                                                                origEl.classList.add("msg-highlight");
+                                                                setTimeout(() => origEl.classList.remove("msg-highlight"), 1500);
+                                                            }
+                                                        }}
+                                                    >
                                                         <p className="text-[10px] font-semibold" style={{ color: isOutgoing ? "rgba(255,255,255,0.6)" : "var(--accent)" }}>
-                                                            Original message unavailable
+                                                            {replySenderName}
                                                         </p>
-                                                    ) : (
-                                                        <>
-                                                            <p className="text-[10px] font-semibold" style={{ color: isOutgoing ? "rgba(255,255,255,0.6)" : "var(--accent)" }}>
-                                                                {msg.replyToMessage.senderId === authUser?._id ? "You" : "Reply"}
-                                                            </p>
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                            {replyPreview?.icon}
                                                             <p className="text-[9px] truncate" style={{ color: isOutgoing ? "rgba(255,255,255,0.5)" : "var(--text-muted)" }}>
-                                                                {msg.replyToMessage.text || "Encrypted message"}
+                                                                {replyPreview?.text}
                                                             </p>
-                                                        </>
-                                                    )}
-                                                </button>
-                                            )}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })()}
 
                                             {isFailed && (
                                                 <div className="flex items-center gap-1.5 mb-1">
