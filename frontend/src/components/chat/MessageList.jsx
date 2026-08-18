@@ -8,6 +8,7 @@ import { Loader2, Download, Check, CheckCheck, AlertCircle, Reply, Copy, Trash2,
 import toast from "react-hot-toast";
 import { axiosInstance } from "../../lib/axios";
 import { PromptModal } from "./PromptModal";
+import { MessageInfoDrawer } from "./MessageInfoDrawer";
 
 function formatTime(timestamp) {
     if (!timestamp) return "";
@@ -177,7 +178,7 @@ function HoverBar({ isOutgoing, onReact, onReply, onMore }) {
     );
 }
 
-function FloatingMenu({ message, isOutgoing, onClose, onReply, onReact, onPin, onEdit, onDelete, onDeleteForEveryone, onRetry }) {
+function FloatingMenu({ message, isOutgoing, onClose, onReply, onReact, onPin, onEdit, onDelete, onDeleteForEveryone, onRetry, onMessageInfo }) {
     const ref = useRef(null);
     const [pos, setPos] = useState({ top: false, right: isOutgoing });
     const [showDeleteSub, setShowDeleteSub] = useState(false);
@@ -285,7 +286,7 @@ function FloatingMenu({ message, isOutgoing, onClose, onReply, onReact, onPin, o
     }
 
     menuItems.push(
-        <button key="info" onClick={onClose}
+        <button key="info" onClick={() => { if (onMessageInfo) onMessageInfo(message); onClose(); }}
             className={itemBase} style={itemColor}
             onMouseEnter={itemHover} onMouseLeave={itemLeave}>
             <Info className="h-[13px] w-[13px]" style={{ color: "var(--accent)" }} />
@@ -410,6 +411,7 @@ export function MessageList({ onReply }) {
     const [editMessage, setEditMessage] = useState(null);
     const [hoveredMsgId, setHoveredMsgId] = useState(null);
     const [floatingMenuMsgId, setFloatingMenuMsgId] = useState(null);
+    const [messageInfoMsg, setMessageInfoMsg] = useState(null);
 
     const hoverTimeoutRef = useRef(null);
     const bubbleRefs = useRef({});
@@ -564,7 +566,8 @@ export function MessageList({ onReply }) {
     }
 
     return (
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
+        <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1 min-w-0">
             <div className="flex items-center justify-center py-4">
                 <span className="text-[10px] font-medium px-3 py-1 rounded-full"
                     style={{ background: "var(--bg-hover)", color: "var(--text-muted)" }}>
@@ -625,6 +628,7 @@ export function MessageList({ onReply }) {
                                             onDelete={() => handleDelete(msg._id)}
                                             onDeleteForEveryone={() => handleDeleteForEveryone(msg._id)}
                                             onRetry={() => retryMessage(msg)}
+                                            onMessageInfo={(m) => setMessageInfoMsg(m)}
                                         />
                                     </div>
                                 )}
@@ -834,6 +838,15 @@ export function MessageList({ onReply }) {
                 maxLength={500}
                 icon={<Pencil className="h-5 w-5" style={{ color: "var(--accent)" }} />}
             />
+
+            {messageInfoMsg && (
+                <MessageInfoDrawer
+                    message={messageInfoMsg}
+                    isOutgoing={messageInfoMsg.senderId === authUser?._id}
+                    onClose={() => setMessageInfoMsg(null)}
+                />
+            )}
+        </div>
         </div>
     );
 }

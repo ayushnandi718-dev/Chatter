@@ -118,9 +118,10 @@ export function MessageInfoDrawer({ message, isOutgoing, onClose }) {
         <div
             ref={ref}
             tabIndex={-1}
-            className="flex flex-col h-full outline-none"
+            className="flex flex-col h-full outline-none slide-in-right shrink-0"
             style={{
                 width: "100%",
+                maxWidth: "340px",
                 background: "var(--bg-surface)",
                 borderLeft: "1px solid var(--border)",
             }}
