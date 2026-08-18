@@ -14,6 +14,7 @@ import { Sidebar } from "../components/chat/Sidebar";
 import { SettingsPanel } from "../components/chat/SettingsPanel";
 import { UserProfileModal } from "../components/chat/UserProfileModal";
 import { ContactInfoPanel } from "../components/chat/ContactInfoPanel";
+import { MessageInfoDrawer } from "../components/chat/MessageInfoDrawer";
 
 export default function ChatPage() {
     const selectedUser = useChatStore((state) => state.selectedUser);
@@ -35,6 +36,7 @@ export default function ChatPage() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [viewProfileUserId, setViewProfileUserId] = useState(null);
     const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
+    const [messageInfoMsg, setMessageInfoMsg] = useState(null);
 
     useEffect(() => {
         subscribeToMessages();
@@ -85,11 +87,18 @@ export default function ChatPage() {
                             />
                             <div className="flex-1 flex min-h-0 overflow-hidden">
                                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                                    <ChatMessageArea />
+                                    <ChatMessageArea onMessageInfo={(msg) => setMessageInfoMsg(msg)} />
                                     <ChatComposer />
                                 </div>
                                 {isContactInfoOpen && (
                                     <ContactInfoPanel onClose={() => setIsContactInfoOpen(false)} />
+                                )}
+                                {messageInfoMsg && (
+                                    <MessageInfoDrawer
+                                        message={messageInfoMsg}
+                                        isOutgoing={messageInfoMsg.senderId === useAuthStore.getState().authUser?._id}
+                                        onClose={() => setMessageInfoMsg(null)}
+                                    />
                                 )}
                             </div>
                         </>

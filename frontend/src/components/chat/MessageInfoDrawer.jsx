@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { X, CheckCheck, Clock, AlertCircle } from "lucide-react";
+import { X, CheckCheck, AlertCircle } from "lucide-react";
 import { useChatStore, MessageStatus } from "../../store/useChatStore";
 
 function formatFullDate(timestamp) {
@@ -44,57 +44,48 @@ export function MessageInfoDrawer({ message, isOutgoing, onClose }) {
     const isFailed = status === MessageStatus.FAILED;
 
     const checkIcon = <CheckCheck className="h-4 w-4" />;
-    const clockIcon = <Clock className="h-4 w-4" />;
     const failIcon = <AlertCircle className="h-4 w-4" />;
 
     const statusEntries = [];
 
-    statusEntries.push({
-        key: "sent",
-        icon: checkIcon,
-        label: "Sent",
-        date: message.createdAt,
-        color: "var(--text-muted)",
-    });
-
-    if (message.deliveredAt) {
+    if (isOutgoing) {
         statusEntries.push({
-            key: "delivered",
+            key: "sent",
             icon: checkIcon,
-            label: "Delivered",
-            date: message.deliveredAt,
-            color: "var(--text-secondary)",
-        });
-    }
-
-    if (message.readAt) {
-        statusEntries.push({
-            key: "read",
-            icon: checkIcon,
-            label: "Read",
-            date: message.readAt,
-            color: "var(--accent)",
-        });
-    }
-
-    if (isFailed) {
-        statusEntries.push({
-            key: "failed",
-            icon: failIcon,
-            label: "Failed to send",
-            date: null,
-            color: "var(--danger)",
-        });
-    }
-
-    if (!message.deliveredAt && !message.readAt && !isFailed && isOutgoing) {
-        statusEntries.push({
-            key: "waiting",
-            icon: clockIcon,
-            label: "Waiting to be delivered",
-            date: null,
+            label: "Sent",
+            date: message.createdAt,
             color: "var(--text-muted)",
         });
+
+        if (message.deliveredAt) {
+            statusEntries.push({
+                key: "delivered",
+                icon: checkIcon,
+                label: "Delivered",
+                date: message.deliveredAt,
+                color: "var(--text-secondary)",
+            });
+        }
+
+        if (message.readAt) {
+            statusEntries.push({
+                key: "read",
+                icon: checkIcon,
+                label: "Read",
+                date: message.readAt,
+                color: "var(--accent)",
+            });
+        }
+
+        if (isFailed) {
+            statusEntries.push({
+                key: "failed",
+                icon: failIcon,
+                label: "Failed to send",
+                date: null,
+                color: "var(--danger)",
+            });
+        }
     }
 
     let preview = "";
