@@ -377,6 +377,8 @@ export function MessageList({ onReply }) {
     const [viewerIndex, setViewerIndex] = useState(0);
     const [editMessage, setEditMessage] = useState(null);
     const [showHover, setShowHover] = useState(false);
+    const activeMenuMessageId = useChatStore((s) => s.activeMenuMessageId);
+    const setActiveMenuMessageId = useChatStore((s) => s.setActiveMenuMessageId);
     const messagesEndRef = useRef(null);
 
     const allImageUrls = messages
@@ -554,7 +556,7 @@ export function MessageList({ onReply }) {
                                     <div
                                         className="absolute right-2 top-2 select-none"
                                         style={{ zIndex: 10 }}
-                                        onClick={(e) => setContextMenu({ x: e.clientX, y: e.clientY, message: msg })}
+                                        onClick={(e) => setActiveMenuMessageId(msg._id)}
                                     >
                                         <div
                                             className="rounded-full p-1.5 cursor-pointer"
@@ -570,20 +572,20 @@ export function MessageList({ onReply }) {
                                     </div>
                                 )}
 
-                                {contextMenu && (
+                                {activeMenuMessageId === msg._id && (
                                     <div
                                         className="p-2 rounded-md bg-[var(--bg-surface)] border border-[var(--border)] shadow-md w-44 shadow-xs"
-                                        onClick={(e) => setContextMenu(null)}
+                                        onClick={(e) => setActiveMenuMessageId(null)}
                                     >
                                         <div
                                             className="p-1 text-xs"
                                             style={{ color: 'var(--text-primary)' }}
-                                            onClick={() => setContextMenu(null)}
+                                            onClick={() => setActiveMenuMessageId(null)}
                                         >
                                             <div
                                                 className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
                                                 onClick={() => {
-                                                    setContextMenu(null);
+                                                    setActiveMenuMessageId(null);
                                                     if (onReply) onReply(msg);
                                                 }}
                                             >
@@ -593,7 +595,7 @@ export function MessageList({ onReply }) {
                                             <div
                                                 className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
                                                 onClick={() => {
-                                                    setContextMenu(null);
+                                                    setActiveMenuMessageId(null);
                                                     setReactionPickerMsgId(msg._id);
                                                 }}
                                             >
@@ -604,7 +606,7 @@ export function MessageList({ onReply }) {
                                                 <div
                                                     className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
                                                     onClick={() => {
-                                                        setContextMenu(null);
+                                                        setActiveMenuMessageId(null);
                                                         handlePin(msg._id);
                                                     }}
                                                 >
@@ -616,7 +618,7 @@ export function MessageList({ onReply }) {
                                                 <div
                                                     className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
                                                     onClick={() => {
-                                                        setContextMenu(null);
+                                                        setActiveMenuMessageId(null);
                                                         handleEdit(msg);
                                                     }}
                                                 >
@@ -627,7 +629,7 @@ export function MessageList({ onReply }) {
                                             <div
                                                 className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
                                                 onClick={() => {
-                                                    setContextMenu(null);
+                                                    setActiveMenuMessageId(null);
                                                     handleDelete(msg._id);
                                                 }}
                                             >
