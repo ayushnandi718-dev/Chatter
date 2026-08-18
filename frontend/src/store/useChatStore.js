@@ -261,9 +261,19 @@ export const useChatStore = create((set, get) => ({
             await axiosInstance.delete(`/messages/${messageId}`, {
                 data: { deleteForEveryone },
             });
-            set((state) => ({
-                messages: state.messages.filter((m) => m._id !== messageId),
-            }));
+            if (deleteForEveryone) {
+                set((state) => ({
+                    messages: state.messages.map((m) =>
+                        m._id === messageId
+                            ? { ...m, isDeletedForEveryone: true, text: "", encryptedText: "", iv: "" }
+                            : m
+                    ),
+                }));
+            } else {
+                set((state) => ({
+                    messages: state.messages.filter((m) => m._id !== messageId),
+                }));
+            }
             get().getConversations();
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to delete message");

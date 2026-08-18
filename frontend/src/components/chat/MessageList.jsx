@@ -497,6 +497,8 @@ export function MessageList({ onReply }) {
         deleteMessage(messageId, true);
     }, [deleteMessage]);
 
+    const closeFloatingMenu = useCallback(() => setFloatingMenuMsgId(null), []);
+
     const handleEdit = useCallback((message) => {
         setEditMessage(message);
     }, []);
@@ -615,7 +617,7 @@ export function MessageList({ onReply }) {
                                         <FloatingMenu
                                             message={msg}
                                             isOutgoing={isOutgoing}
-                                            onClose={() => setFloatingMenuMsgId(null)}
+                                            onClose={closeFloatingMenu}
                                             onReply={() => { if (onReply) onReply(msg); }}
                                             onReact={() => setReactionPickerMsgId(msg._id)}
                                             onPin={() => handlePin(msg._id)}
