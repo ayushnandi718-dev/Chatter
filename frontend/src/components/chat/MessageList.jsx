@@ -389,6 +389,20 @@ export function MessageList({ onReply }) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!e.target.closest(`.relative.max-w-[80%]`)) {
+                setActiveMenuMessageId(null);
+            }
+        };
+
+        document.addEventListener("click", handleClickOutside);
+
+        return () => {
+            document.removeEventListener("click", handleClickOutside);
+        };
+    }, []);
+
     const handleContextMenu = useCallback((e, msg) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY, message: msg });
