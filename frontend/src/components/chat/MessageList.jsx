@@ -554,11 +554,12 @@ export function MessageList({ onReply }) {
                                     <div
                                         className="absolute right-2 top-2 select-none"
                                         style={{ zIndex: 10 }}
+                                        onClick={(e) => setContextMenu({ x: e.clientX, y: e.clientY, message: msg })}
                                     >
                                         <div
                                             className="rounded-full p-1.5 cursor-pointer"
                                             style={{
-                                                background: "var(--bg-elevated)",
+                                                background: "var(--bg-elevished)",
                                                 border: "1px solid var(--border)",
                                             }}
                                             onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
