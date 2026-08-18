@@ -270,6 +270,21 @@ function HoverActionBar({ message, isOutgoing, onReply, onReact, onPin, onEdit, 
         lastTapRef.current = now;
     }, []);
 
+    const iconBtn = (icon, label, onClick, danger = false) => (
+        <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className="flex items-center justify-center h-7 w-7 rounded-full transition-all"
+            style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: danger ? "var(--danger)" : "var(--text-primary)",
+            }}
+            title={label}
+        >
+            {icon}
+        </button>
+    );
+
     if (!visible) {
         return (
             <div
