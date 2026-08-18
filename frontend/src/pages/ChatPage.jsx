@@ -13,6 +13,7 @@ import { FriendRequests } from "../components/chat/FriendRequests";
 import { Sidebar } from "../components/chat/Sidebar";
 import { SettingsPanel } from "../components/chat/SettingsPanel";
 import { UserProfileModal } from "../components/chat/UserProfileModal";
+import { ContactInfoPanel } from "../components/chat/ContactInfoPanel";
 
 export default function ChatPage() {
     const selectedUser = useChatStore((state) => state.selectedUser);
@@ -33,6 +34,7 @@ export default function ChatPage() {
     const [isRequestsOpen, setIsRequestsOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [viewProfileUserId, setViewProfileUserId] = useState(null);
+    const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
 
     useEffect(() => {
         subscribeToMessages();
@@ -78,10 +80,18 @@ export default function ChatPage() {
                             <ChatHeader
                                 onOpenWallpapers={() => setIsWallpaperOpen(true)}
                                 onOpenSearch={() => setIsSearchOpen(true)}
+                                onOpenContactInfo={() => setIsContactInfoOpen(true)}
                                 onOpenProfile={(userId) => setViewProfileUserId(userId)}
                             />
-                            <ChatMessageArea />
-                            <ChatComposer />
+                            <div className="flex-1 flex min-h-0 overflow-hidden">
+                                <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                                    <ChatMessageArea />
+                                    <ChatComposer />
+                                </div>
+                                {isContactInfoOpen && (
+                                    <ContactInfoPanel onClose={() => setIsContactInfoOpen(false)} />
+                                )}
+                            </div>
                         </>
                     ) : (
                         <NoChatSelected onOpenSearch={() => setIsSearchOpen(true)} />

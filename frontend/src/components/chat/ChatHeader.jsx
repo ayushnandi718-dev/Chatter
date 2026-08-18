@@ -7,7 +7,7 @@ import { X, Volume2, VolumeX, Palette, Image as ImageIcon, ArrowLeft, UserMinus,
 import { useState, useRef, useEffect } from "react";
 import { ConfirmModal } from "./ConfirmModal";
 
-export function ChatHeader({ onOpenWallpapers, onOpenSearch, onOpenProfile }) {
+export function ChatHeader({ onOpenWallpapers, onOpenSearch, onOpenContactInfo, onOpenProfile }) {
     const selectedUser = useChatStore((state) => state.selectedUser);
     const setSelectedUser = useChatStore((state) => state.setSelectedUser);
     const onlineUsers = useAuthStore((state) => state.onlineUsers);
@@ -76,7 +76,7 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch, onOpenProfile }) {
                     <ArrowLeft className="h-4.5 w-4.5" />
                 </button>
 
-                <div className="relative cursor-pointer" onClick={() => onOpenProfile?.(selectedUser._id)}>
+                <div className="relative cursor-pointer" onClick={() => onOpenContactInfo?.()}>
                     <img src={selectedUser.profilePic || "/favicon.svg"}
                          alt=""
                          className="h-8 w-8 rounded-full object-cover transition-opacity hover:opacity-80" />
@@ -87,7 +87,7 @@ export function ChatHeader({ onOpenWallpapers, onOpenSearch, onOpenProfile }) {
                           }} />
                 </div>
 
-                <div className="cursor-pointer" onClick={() => onOpenProfile?.(selectedUser._id)}>
+                <div className="cursor-pointer" onClick={() => onOpenContactInfo?.()}>
                     <h3 className="text-xs font-semibold hover:underline" style={{ color: 'var(--text-primary)' }}>
                         {selectedUser.displayName || selectedUser.username}
                     </h3>

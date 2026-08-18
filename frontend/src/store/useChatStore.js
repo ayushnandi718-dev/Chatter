@@ -25,6 +25,7 @@ export const useChatStore = create((set, get) => ({
     typingUsers: [],
     decryptedPreviews: {},
     pinnedMessages: [],
+    replyingTo: null,
     fetchPinnedMessages: async (userId) => {
         try {
             const res = await axiosInstance.get(`/messages/pinned/${userId}`);
@@ -41,8 +42,10 @@ export const useChatStore = create((set, get) => ({
 
     setSearchQuery: (query) => set({ searchQuery: query }),
 
+    setReplyingTo: (message) => set({ replyingTo: message }),
+
     setSelectedUser: (selectedUser) => {
-        set({ selectedUser, messages: [], pinnedMessages: [] });
+        set({ selectedUser, messages: [], pinnedMessages: [], replyingTo: null });
         if (selectedUser) {
             get().getMessages(selectedUser._id);
             get().fetchPinnedMessages(selectedUser._id);
@@ -115,7 +118,7 @@ export const useChatStore = create((set, get) => ({
     },
 
     sendMessage: async (messageData) => {
-        const { selectedUser, messages } = get();
+        const { selectedUser, messages, replyingTo } = get();
         if (!selectedUser) return;
 
         const isFormData = messageData instanceof FormData;
@@ -125,12 +128,14 @@ export const useChatStore = create((set, get) => ({
 
         let optimisticId = null;
         let tempId = null;
+        const replyToId = replyingTo?._id || null;
 
         try {
             let payload;
 
             if (isFormData) {
                 payload = messageData;
+                if (replyToId) payload.append("replyTo", replyToId);
                 tempId = "temp-" + Date.now();
             } else {
                 const cryptoStore = useCryptoStore.getState();
@@ -175,6 +180,8 @@ export const useChatStore = create((set, get) => ({
                     payload = messageData;
                 }
 
+                if (replyToId) payload.replyTo = replyToId;
+
                 tempId = "temp-" + Date.now();
                 optimisticId = tempId;
 
@@ -189,9 +196,21 @@ export const useChatStore = create((set, get) => ({
                     clientMessageId: payload.clientMessageId || "",
                     _status: MessageStatus.SENDING,
                     createdAt: new Date().toISOString(),
+                    replyTo: replyToId,
+                    replyToMessage: replyingTo ? {
+                        _id: replyingTo._id,
+                        senderId: replyingTo.senderId,
+                        text: replyingTo.text || "",
+                        image: replyingTo.image || null,
+                        video: replyingTo.video || null,
+                        audio: replyingTo.audio || null,
+                        file: replyingTo.file || null,
+                        fileName: replyingTo.fileName || "",
+                        isDeletedForEveryone: replyingTo.isDeletedForEveryone || false,
+                    } : null,
                 };
 
-                set((state) => ({ messages: [...state.messages, optimisticMsg] }));
+                set((state) => ({ messages: [...state.messages, optimisticMsg], replyingTo: null }));
             }
 
             const res = await axiosInstance.post(
@@ -221,6 +240,7 @@ export const useChatStore = create((set, get) => ({
             });
 
             useSoundStore.getState().playSendSound();
+            set({ replyingTo: null });
             get().getConversations();
 
             return newMsg;
