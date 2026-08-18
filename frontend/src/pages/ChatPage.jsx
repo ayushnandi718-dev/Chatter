@@ -87,8 +87,17 @@ export default function ChatPage() {
                             />
                             <div className="flex-1 flex min-h-0 overflow-hidden">
                                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                                    <ChatMessageArea onMessageInfo={(msg) => setMessageInfoMsg(msg)} />
-                                    <ChatComposer />
+                                    <ChatMessageArea
+                                        onReply={(msg) => {
+                                            useChatStore.getState().setReplyingTo(msg);
+                                            setIsContactInfoOpen(false);
+                                            setMessageInfoMsg(null);
+                                        }}
+                                        onMessageInfo={(msg) => setMessageInfoMsg(msg)}
+                                    />
+                                    <ChatComposer
+                                        onCancelReply={() => useChatStore.getState().setReplyingTo(null)}
+                                    />
                                 </div>
                                 {isContactInfoOpen && (
                                     <ContactInfoPanel onClose={() => setIsContactInfoOpen(false)} />

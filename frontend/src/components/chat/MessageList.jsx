@@ -665,22 +665,37 @@ export function MessageList({ onReply, onMessageInfo }) {
                                     ) : (
                                         <>
                                             {msg.replyTo && msg.replyToMessage && (
-                                                <div className="mb-1.5 rounded-md px-2 py-1.5"
+                                                <button
+                                                    className="mb-1.5 rounded-md px-2 py-1.5 w-full text-left transition-colors"
                                                     style={{
                                                         background: isOutgoing ? "rgba(255,255,255,0.1)" : "var(--bg-elevated)",
-                                                        borderLeft: "2px solid " + (isOutgoing ? "rgba(255,255,255,0.4)" : "var(--accent)"),
-                                                    }}>
-                                                    <p className="text-[8px] font-semibold" style={{ color: isOutgoing ? "rgba(255,255,255,0.6)" : "var(--accent)" }}>
-                                                        {msg.replyToMessage.senderId === authUser?._id ? "You" : "Reply"}
-                                                    </p>
-                                                    <p className="text-[9px] truncate" style={{ color: isOutgoing ? "rgba(255,255,255,0.5)" : "var(--text-muted)" }}>
-                                                        {msg.replyToMessage.isDeletedForEveryone
-                                                            ? "Message deleted"
-                                                            : msg.replyToMessage.text || msg.replyToMessage.encryptedText
-                                                                ? "🔒 Encrypted"
-                                                                : msg.replyToMessage.image ? "📷 Photo" : "📎 File"}
-                                                    </p>
-                                                </div>
+                                                        borderLeft: "3px solid " + (isOutgoing ? "rgba(255,255,255,0.4)" : "var(--accent)"),
+                                                    }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const origEl = document.getElementById(`msg-${msg.replyTo}`);
+                                                        if (origEl) {
+                                                            origEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                                                            origEl.classList.add("msg-highlight");
+                                                            setTimeout(() => origEl.classList.remove("msg-highlight"), 1500);
+                                                        }
+                                                    }}
+                                                >
+                                                    {msg.replyToMessage.isDeletedForEveryone ? (
+                                                        <p className="text-[10px] font-semibold" style={{ color: isOutgoing ? "rgba(255,255,255,0.6)" : "var(--accent)" }}>
+                                                            Original message unavailable
+                                                        </p>
+                                                    ) : (
+                                                        <>
+                                                            <p className="text-[10px] font-semibold" style={{ color: isOutgoing ? "rgba(255,255,255,0.6)" : "var(--accent)" }}>
+                                                                {msg.replyToMessage.senderId === authUser?._id ? "You" : "Reply"}
+                                                            </p>
+                                                            <p className="text-[9px] truncate" style={{ color: isOutgoing ? "rgba(255,255,255,0.5)" : "var(--text-muted)" }}>
+                                                                {msg.replyToMessage.text || "Encrypted message"}
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                </button>
                                             )}
 
                                             {isFailed && (

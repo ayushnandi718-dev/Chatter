@@ -160,7 +160,7 @@ export async function getMessages(req, res) {
         const messageIds = messages.filter((m) => m.replyTo).map((m) => m.replyTo);
         const replyMessages = messageIds.length > 0
             ? await Message.find({ _id: { $in: messageIds } }).select(
-                "_id senderId receiverId text encryptedText iv clientMessageId createdAt isDeletedForEveryone"
+                "_id senderId receiverId text encryptedText iv clientMessageId createdAt isDeletedForEveryone image video audio file fileName"
               )
             : [];
         const replyMap = {};
@@ -275,7 +275,7 @@ export async function sendMessage(req, res) {
             const msgObj = newMessage.toObject();
             if (messageData.replyTo && msgObj.replyTo) {
                 const repliedFull = await Message.findById(msgObj.replyTo).select(
-                    "_id senderId receiverId text encryptedText iv clientMessageId createdAt isDeletedForEveryone"
+                    "_id senderId receiverId text encryptedText iv clientMessageId createdAt isDeletedForEveryone image video audio file fileName"
                 );
                 if (repliedFull) msgObj.replyToMessage = repliedFull;
             }

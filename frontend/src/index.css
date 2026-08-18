@@ -128,3 +128,18 @@
 .slide-in-right {
   animation: slide-in-right 0.2s ease-out;
 }
+
+@keyframes reply-slide-up {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.reply-preview-enter {
+  animation: reply-slide-up 0.15s ease-out;
+}

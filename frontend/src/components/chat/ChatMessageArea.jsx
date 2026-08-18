@@ -3,7 +3,7 @@ import { useWallpaperStore } from "../../store/useWallpaperStore";
 import { MessageList } from "./MessageList";
 import { PinnedMessageBar } from "./PinnedMessageBar";
 
-export function ChatMessageArea({ onMessageInfo }) {
+export function ChatMessageArea({ onReply, onMessageInfo }) {
     const selectedUser = useChatStore((state) => state.selectedUser);
     const globalId = useWallpaperStore((state) => state.globalId);
     const brightness = useWallpaperStore((state) => state.brightness);
@@ -29,7 +29,7 @@ export function ChatMessageArea({ onMessageInfo }) {
             />
             <div className="relative z-[1] flex-1 flex flex-col min-h-0 overflow-hidden">
                 <PinnedMessageBar />
-                <MessageList onMessageInfo={onMessageInfo} />
+                <MessageList onReply={onReply} onMessageInfo={onMessageInfo} />
             </div>
         </div>
     );

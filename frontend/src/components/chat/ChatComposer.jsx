@@ -2,9 +2,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useChatStore } from "../../store/useChatStore";
 import { useSoundStore } from "../../store/useSoundStore";
 import { useCryptoStore } from "../../store/useCryptoStore";
+import { useAuthStore } from "../../store/useAuthStore";
+import { useFriendStore } from "../../store/useFriendStore";
 import { CryptoState } from "../../lib/crypto-states";
 import { Send, Image, X, Loader2, Video, Plus, Mic, FileText, StopCircle, AlertTriangle, Smile } from "lucide-react";
 import { EmojiPicker } from "./EmojiPicker";
+import { ReplyPreview } from "./ReplyPreview";
 import toast from "react-hot-toast";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -21,7 +24,7 @@ function formatDuration(seconds) {
     return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function ChatComposer() {
+export function ChatComposer({ onCancelReply }) {
     const [text, setText] = useState("");
     const [selectedFile, setSelectedFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
@@ -49,6 +52,16 @@ export function ChatComposer() {
     const sendStopTyping = useChatStore((state) => state.sendStopTyping);
     const cryptoState = useCryptoStore((state) => state.cryptoState);
     const lastError = useCryptoStore((state) => state.lastError);
+    const replyingTo = useChatStore((state) => state.replyingTo);
+
+    const getSenderName = useCallback((senderId) => {
+        const authUser = useAuthStore.getState().authUser;
+        if (senderId === authUser?._id) return "You";
+        const friends = useFriendStore.getState().friends;
+        const f = friends.find((f) => f._id === senderId);
+        if (f) return f.displayName || f.username;
+        return "User";
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -232,6 +245,11 @@ export function ChatComposer() {
     };
 
     const handleKeyDown = (e) => {
+        if (e.key === "Escape" && replyingTo) {
+            e.preventDefault();
+            if (onCancelReply) onCancelReply();
+            return;
+        }
         playKeystrokeSound();
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -312,6 +330,16 @@ export function ChatComposer() {
                     </span>
                 </div>
             )}
+            {replyingTo && (
+                <div className="mb-2">
+                    <ReplyPreview
+                        replyingTo={replyingTo}
+                        senderName={getSenderName(replyingTo.senderId)}
+                        onCancel={onCancelReply}
+                    />
+                </div>
+            )}
+
             {/* Recording indicator */}
             {isRecording && (
                 <div className="mb-2 flex items-center gap-2.5 rounded-lg px-3 py-2.5"
