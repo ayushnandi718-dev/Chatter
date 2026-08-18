@@ -25,8 +25,6 @@ export const useChatStore = create((set, get) => ({
     typingUsers: [],
     decryptedPreviews: {},
     pinnedMessages: [],
-    activeMenuMessageId: null,
-
     fetchPinnedMessages: async (userId) => {
         try {
             const res = await axiosInstance.get(`/messages/pinned/${userId}`);
@@ -40,8 +38,6 @@ export const useChatStore = create((set, get) => ({
             set({ pinnedMessages: [] });
         }
     },
-
-    setActiveMenuMessageId: (messageId) => set({ activeMenuMessageId: messageId }),
 
     setSearchQuery: (query) => set({ searchQuery: query }),
 
