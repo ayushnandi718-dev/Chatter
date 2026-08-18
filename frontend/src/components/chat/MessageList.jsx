@@ -376,6 +376,7 @@ export function MessageList({ onReply }) {
     const [viewerOpen, setViewerOpen] = useState(false);
     const [viewerIndex, setViewerIndex] = useState(0);
     const [editMessage, setEditMessage] = useState(null);
+    const [showHover, setShowHover] = useState(false);
     const messagesEndRef = useRef(null);
 
     const allImageUrls = messages
@@ -532,7 +533,9 @@ export function MessageList({ onReply }) {
                                     opacity: msg._status === MessageStatus.SENDING ? 0.7 : 1,
                                 }}
                                 onContextMenu={(e) => !isDeleted && handleContextMenu(e, msg)}
-                                onTouchStart={(e) => !isDeleted && handleTouchStart(e, msg)}>
+                                onTouchStart={(e) => !isDeleted && handleTouchStart(e, msg)}
+                                onMouseEnter={() => setShowHover(!showHover)}
+                                onMouseLeave={() => setShowHover(false)}>
 
                                 {!isDeleted && (
                                     <HoverActionBar
@@ -544,6 +547,96 @@ export function MessageList({ onReply }) {
                                         onEdit={() => handleEdit(msg)}
                                         onDelete={() => handleDelete(msg._id)}
                                     />
+                                )}
+
+                                {/* Three dots menu button */}
+                                {showHover && (
+                                    <div
+                                        className="absolute right-2 top-2 select-none"
+                                        style={{ zIndex: 10 }}
+                                        onClick={() => setContextMenu(null)}
+                                    >
+                                        <div
+                                            className="rounded-full p-1.5 cursor-pointer"
+                                            style={{
+                                                background: "var(--bg-elevated)",
+                                                border: "1px solid var(--border)",
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
+                                            onMouseLeave={(e) => e.currentTarget.style.background = "var(--bg-elevated)"}
+                                        >
+                                            <span className="text-[12px]">⋮</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {contextMenu && (
+                                    <div
+                                        className="fixed z-[100] bottom-[8px] right-2 w-48 rounded-md overflow-hidden bg-[var(--bg-surface)] border border-[var(--border)] shadow-md"
+                                        style={{ display: 'block' }}
+                                        onClick={(e) => setContextMenu(null)}
+                                    >
+                                        <div
+                                            className="p-1 text-xs"
+                                            style={{ color: 'var(--text-primary)' }}
+                                            onClick={() => setContextMenu(null)}
+                                        >
+                                            <div
+                                                className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
+                                                onClick={() => {
+                                                    setContextMenu(null);
+                                                    if (onReply) onReply(msg);
+                                                }}
+                                            >
+                                                <span className="w-2 h-2 rounded-full bg-[var(--accent)] mr-1"></span>
+                                                Reply
+                                            </div>
+                                            <div
+                                                className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
+                                                onClick={() => {
+                                                    setContextMenu(null);
+                                                    setReactionPickerMsgId(msg._id);
+                                                }}
+                                            >
+                                                <span className="w-2 h-2 rounded-full bg-[var(--accent)] mr-1"></span>
+                                                React
+                                            </div>
+                                            {isOutgoing && !msg.isDeletedForEveryone && (
+                                                <div
+                                                    className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
+                                                    onClick={() => {
+                                                        setContextMenu(null);
+                                                        handlePin(msg._id);
+                                                    }}
+                                                >
+                                                    <span className="w-2 h-2 rounded-full bg-[var(--accent)] mr-1"></span>
+                                                    {msg.isPinned ? "Unpin" : "Pin"}
+                                                </div>
+                                            )}
+                                            {isOutgoing && !msg.isDeletedForEveryone && msg.text && (
+                                                <div
+                                                    className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
+                                                    onClick={() => {
+                                                        setContextMenu(null);
+                                                        handleEdit(msg);
+                                                    }}
+                                                >
+                                                    <span className="w-2 h-2 rounded-full bg-[var(--accent)] mr-1"></span>
+                                                    Edit
+                                                </div>
+                                            )}
+                                            <div
+                                                className="flex items-center gap-2 px-2 py-1 cursor-pointer select-none"
+                                                onClick={() => {
+                                                    setContextMenu(null);
+                                                    handleDelete(msg._id);
+                                                }}
+                                            >
+                                                <span className="w-2 h-2 rounded-full bg-[var(--danger)] mr-1"></span>
+                                                Delete
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
 
                                 {isDeleted ? (
