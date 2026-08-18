@@ -243,8 +243,12 @@ export const useChatStore = create((set, get) => ({
                 if (isDuplicate) return { messages: msgs };
 
                 const optimisticMsg = state.messages.find((m) => m._id === optimisticId);
-                if (optimisticMsg?.replyToMessage && !newMsg.replyToMessage) {
-                    newMsg.replyToMessage = optimisticMsg.replyToMessage;
+                if (optimisticMsg?.replyToMessage) {
+                    if (!newMsg.replyToMessage) {
+                        newMsg.replyToMessage = optimisticMsg.replyToMessage;
+                    } else if (!newMsg.replyToMessage.text && !newMsg.replyToMessage.encryptedText && optimisticMsg.replyToMessage.text) {
+                        newMsg.replyToMessage = { ...newMsg.replyToMessage, text: optimisticMsg.replyToMessage.text };
+                    }
                 }
 
                 return { messages: [...msgs, newMsg] };

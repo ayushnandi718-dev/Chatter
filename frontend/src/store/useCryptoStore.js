@@ -320,12 +320,19 @@ export const useCryptoStore = create((set, get) => ({
     decryptMessages: async (messages) => {
         const results = [];
         for (const msg of messages) {
+            let decryptedMsg = msg;
             if (msg.encryptedText && msg.iv) {
                 const plaintext = await get().decryptIncoming(msg);
-                results.push({ ...msg, text: plaintext ?? "🔒 Could not decrypt this message." });
-            } else {
-                results.push(msg);
+                decryptedMsg = { ...msg, text: plaintext ?? "🔒 Could not decrypt this message." };
             }
+            if (decryptedMsg.replyToMessage?.encryptedText && decryptedMsg.replyToMessage?.iv) {
+                const replyPlaintext = await get().decryptIncoming(decryptedMsg.replyToMessage);
+                decryptedMsg = {
+                    ...decryptedMsg,
+                    replyToMessage: { ...decryptedMsg.replyToMessage, text: replyPlaintext ?? "🔒 Could not decrypt" },
+                };
+            }
+            results.push(decryptedMsg);
         }
         return results;
     },
