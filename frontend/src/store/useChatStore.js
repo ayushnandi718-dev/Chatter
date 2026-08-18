@@ -428,11 +428,22 @@ export const useChatStore = create((set, get) => ({
                 }
             }
 
-            set((state) => ({
-                messages: state.messages.map((m) =>
+            set((state) => {
+                // Update messages
+                const updatedMessages = state.messages.map((m) =>
                     m._id === messageId ? { ...m, text: decryptedText, editedAt } : m
-                ),
-            }));
+                );
+
+                // Also update pinnedMessages if the edited message is pinned
+                const updatedPinned = state.pinnedMessages.map((m) =>
+                    m._id === messageId ? { ...m, text: decryptedText, editedAt } : m
+                );
+
+                return {
+                    messages: updatedMessages,
+                    pinnedMessages: updatedPinned,
+                };
+            });
         });
 
         socket.on("messageReaction", ({ messageId, reactions }) => {

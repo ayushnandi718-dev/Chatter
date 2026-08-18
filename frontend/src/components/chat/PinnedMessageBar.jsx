@@ -24,7 +24,7 @@ export function PinnedMessageBar() {
         if (msg.image) return "📷 Image";
         if (msg.video) return "🎥 Video";
         if (msg.audio || msg.file) return "📎 " + (msg.fileName || "Attachment");
-        return msg.text || msg.encryptedText ? "🔒 Encrypted message" : "Message";
+        return msg.text || (msg.encryptedText ? "🔒 Encrypted message" : "Message");
     };
 
     const handleClick = (msg) => {
